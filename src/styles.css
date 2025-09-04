@@ -1,0 +1,60 @@
+
+:root { --bg:#f8fafc; --card:#fff; --text:#0f172a; --muted:#64748b; --accent:#2563eb; --ring:#93c5fd; --border:#e2e8f0; }
+*{box-sizing:border-box} html,body,#root{height:100%;margin:0}
+body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+.container{max-width:1200px;margin:0 auto;padding:24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.hstack{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.vstack{display:grid;gap:12px}
+.input,.select,.button{border:1px solid var(--border);border-radius:12px;padding:10px 12px;font-size:14px}
+.input:focus,.select:focus{outline:none;box-shadow:0 0 0 3px var(--ring);border-color:var(--accent)}
+.textarea{width:100%;min-height:350px;resize:vertical}
+@media (max-width: 1100px){ .textarea{width:100%;min-height:375px } }
+.button{background:#fff;cursor:pointer}.button:hover{background:#f1f5f9}
+.button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}.button.primary:hover{filter:brightness(.95)}
+.badge{font-size:12px;color:var(--muted)}
+.grid-generator{display:grid;grid-template-columns: minmax(420px,1fr) minmax(420px,1fr);gap:16px;align-items:start}
+@media (max-width: 1100px){.grid-generator{grid-template-columns:1fr}}
+.preview{height:520px;display:flex;align-items:center;justify-content:center;padding:16px;border:1px dashed var(--border);border-radius:12px;background:#f8fafc}
+.preview img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+.tabs{display:flex;gap:8px;border-bottom:1px solid var(--border);margin-bottom:12px}
+.tab{padding:8px 12px;border-radius:10px 10px 0 0;border:1px solid transparent;cursor:pointer}
+.tab.active{background:#fff;border-color:var(--border);border-bottom-color:#fff}
+@media print{body{background:#fff}.no-print{display:none!important}.print-sheet{page-break-after:always}}
+.print-page{margin:0 auto;background:#fff}
+.label-grid{display:grid;width:100%;height:100%}
+.label-cell{border:1px dashed #cbd5e1;border-radius:2mm;display:flex;align-items:center;justify-content:center;padding:3mm;text-align:center}
+.label-cell img{max-width:100%;max-height:100%}
+.cell-highlight{ outline:3px solid #60a5fa; outline-offset:-3px }
+.small{font-size:12px;color:var(--muted)}
+.toast{position:fixed;right:16px;bottom:16px;background:#0ea5e9;color:#fff;padding:10px 12px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.15)}
+
+/* Screen-only page outline */
+.page-outline{ background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.05); margin:16px auto; }
+@media print{ .page-outline{ box-shadow:none; border:0 } }
+
+/* Zoomable viewport */
+.sheet-viewport{ overflow:auto; max-height:70vh; background:linear-gradient(180deg,#f1f5f9,transparent 60%); padding:8px; border-radius:12px; border:1px solid var(--border) }
+.sheet-viewport::-webkit-scrollbar{ width:10px; height:10px }
+@media print{ .sheet-viewport{ overflow:visible !important; max-height:none !important; border:0; padding:0; background:#fff } .sheet-viewport::-webkit-scrollbar{ display:none } }
+
+/* Footer */
+.app-footer{margin:24px auto 12px;max-width:1200px;font-size:12px;color:#64748b;text-align:center}
+
+.icon-btn{padding:6px 8px; display:inline-grid; place-items:center}
+.icon-btn svg{display:block}
+.icon-btn:hover{background:#e2e8f0}
+
+.bottom-actions{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+.sheet-viewport .button.icon-btn{border-radius:10px}
+
+.sheet-viewport + .bottom-actions, .sheet-actions{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+.button.icon-btn{padding:6px 8px; display:inline-grid; place-items:center}
+
+
+/* Top banner with inline language switcher */
+.banner{ background: #fff; border:1px solid #eef2f7; border-radius:14px; padding:12px 16px; margin:8px 0 12px; }
+.banner-inner{ display:flex; align-items:center; justify-content:space-between; }
+.banner-title{ font-weight:800; font-size:24px; line-height:1.1; }
+
+.app-footer{ text-align:center; color:#334155; font-size:14px; }
