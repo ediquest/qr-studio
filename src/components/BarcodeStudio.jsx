@@ -6,7 +6,7 @@ import { parseLines, parseCsv, generateSequence, detectNumericRun } from '../uti
 import { PRESETS } from '../utils/layouts.js'
 import { useI18n } from '../i18n.jsx'
 
-const POPULAR_CODE_IDS = ['qrcode','code128','ean13','ean8','upca','code39','itf14','gs1-128','datamatrix','pdf417','azteccode','upce','code93','code11','msi','codabar','interleaved2of5','standard2of5','postnet','planet','usps4cb','rm4scc','pharmacode','pharmacode2','isbn','issn','ismn'];
+const POPULAR_CODE_IDS = ['qrcode','code128','ean13','ean8','itf14','gs1-128','datamatrix','azteccode','pdf417'];
 // Aliases for bwip-js encoder names (to match UI ids)
 const BCID_ALIASES = {
   'rm4scc': 'royalmail',  // RM4SCC (Royal Mail/KIX) encoder name in bwip-js
@@ -37,6 +37,33 @@ function makeBitmap(opts){
   const safe = { ...opts, rotate: rotCode(opts.rotate||0) }
   fn(canvas, safe)
   return canvas.toDataURL('image/png')
+}
+
+function getSvgSize(svgStr){
+  if (!svgStr) return null;
+  const vb = svgStr.match(/viewBox="([\d.\s]+)"/i);
+  if (vb && vb[1]){
+    const parts = vb[1].trim().split(/\s+/).map(Number);
+    if (parts.length===4 && parts[2]>0 && parts[3]>0) return { w: parts[2], h: parts[3] };
+  }
+  const w = svgStr.match(/width="([\d.]+)[^"]*"/i);
+  const h = svgStr.match(/height="([\d.]+)[^"]*"/i);
+  if (w && h) return { w: parseFloat(w[1]), h: parseFloat(h[1]) };
+  return null;
+}
+function fitRect(x,y,w,h,iw,ih){
+  if (!iw || !ih) return { x, y, w, h };
+  const s = Math.min(w/iw, h/ih);
+  const fw = iw*s; const fh = ih*s;
+  return { x: x + (w - fw)/2, y: y + (h - fh)/2, w: fw, h: fh };
+}
+function getImageSize(dataUrl){
+  return new Promise((res)=>{
+    const img = new Image();
+    img.onload = () => res({ w: img.naturalWidth || img.width, h: img.naturalHeight || img.height });
+    img.onerror = () => res(null);
+    img.src = dataUrl;
+  });
 }
 
 export default function BarcodeStudio() {
@@ -119,9 +146,15 @@ export default function BarcodeStudio() {
 
   const [snapMM, setSnapMM] = useState(0); // 0=off, 1,2,5
   const [selectedIdx, setSelectedIdx] = useState(null);
+  const [sheetBcid, setSheetBcid] = useState('qrcode')
+  const [changeAllCodes, setChangeAllCodes] = useState(false)
 
 
   useEffect(()=>{ setCols(preset.cols); setRows(preset.rows); setPageW(preset.pageW); setPageH(preset.pageH); setGapMM(preset.gapMM); setPadMM(preset.padMM) }, [presetKey])
+  useEffect(()=>{
+    const b = (selectedIdx!=null && labels[selectedIdx]?.bcid) || labels[0]?.bcid || 'qrcode'
+    setSheetBcid(b)
+  }, [selectedIdx, labels])
 
   const gs1Report = useMemo(() => { if (bcid !== 'gs1-128' && bcid !== 'qrcode' && bcid !== 'datamatrix') return null; if (!text.includes('(')) return null; return validateGs1(text) }, [text, bcid])
 
@@ -270,6 +303,15 @@ export default function BarcodeStudio() {
     const h = is2d ? (cellH*mulY) : (cellH*mulY*ONE_D_HEIGHT_RATIO)
     return { w: cellW*mulX, h }
   }
+  function clampPosToCell(i, pos){
+    const { cellW, cellH } = metrics()
+    const base = defaultPosForIndex(i)
+    const { w, h } = nodeSizeMM(i)
+    return {
+      x: Math.max(base.x, Math.min(base.x + cellW - w, pos.x)),
+      y: Math.max(base.y, Math.min(base.y + cellH - h, pos.y)),
+    }
+  }
   function clampPos(i, pos){
     const { innerW, innerH } = metrics()
     const { w, h } = nodeSizeMM(i)
@@ -348,15 +390,16 @@ export default function BarcodeStudio() {
 
   function normalizeInput(bcid, value){
     let v = (value || '').toString().trim();
-    if (['ean13','ean8','upca','upce','itf14','isbn','isbn10','isbn13','postnet','kix','itf'].some(x=>bcid.startsWith(x))) {
+    if (['ean13','ean8','itf14'].some(x=>bcid.startsWith(x))) {
       v = v.replace(/[^0-9]/g,'');
     }
     return v;
   }
-function renderLabelPages(){
+  function renderLabelPages(){
     const out = []; const perPageLocal = perPage; const { innerW, innerH, cellW, cellH } = metrics()
+    const useFreeLayout = freeLayout || Object.keys(posOverrides || {}).length > 0
     for (let p=0; p<pages; p++) {
-      if (!freeLayout){
+      if (!useFreeLayout){
         out.push(
           <div key={p} data-page-idx={p} className="print-page print-sheet page-outline" style={{ width: pageW+'mm', height: pageH+'mm', padding: padMM+'mm' }}>
             <div className="label-grid" style={{ gridTemplateColumns:`repeat(${cols},1fr)`, gridTemplateRows:`repeat(${rows},1fr)`, gap: gapMM+'mm' }}>
@@ -378,14 +421,14 @@ function renderLabelPages(){
                 return (
                   <div key={i} className={"label-cell "+(hoverCell===globalCellIndex?"cell-highlight":"")} data-cell-index={globalCellIndex}
                        onPointerDown={(e)=>startPointerDrag(e, globalCellIndex)}
-                       style={{position:'relative', borderStyle: showGrid?'dashed':'none', cursor: editMode && item ? (dragRef.current.active?'grabbing':'grab') : 'default', overflow: editMode ? 'visible' : 'hidden', touchAction:'none', userSelect:'none'}}>
+                       style={{position:'relative', borderStyle: showGrid?'dashed':'none', cursor: editMode && item ? (dragRef.current.active?'grabbing':'grab') : 'default', overflow:'hidden', touchAction:'none', userSelect:'none'}}>
                     {(() => {
                       if (imgSrc && imgSrc!=='ERROR') {
                         const wrapW = (mulX*100)+'%'; const wrapH = (TWO_D_SET.has(item?.bcid||'') ? (mulY*100)+'%' : '100%');
                         return (
                           <div className="barcode-wrap" style={{position:'relative', width:wrapW, height:wrapH, display:'flex', alignItems:'center', justifyContent:'center'}}>
                             <img src={imgSrc} alt="barcode" draggable={false} style={{maxWidth:'100%',maxHeight:'100%', pointerEvents:'none'}} />
-                            {editMode && (<div title="Skaluj proporcjonalnie" data-resize="1" onPointerDown={(e)=>startResize(e, idx, 'both')} style={{position:'absolute', right:-6, bottom:-6, width:16, height:16, border:'1px solid #475569', background:'#e2e8f0', borderRadius:4, cursor:'nwse-resize', display:'grid', placeItems:'center', fontSize:10, color:'#334155', zIndex:2}}>◢</div>)}
+                            {editMode && (<div title="Skaluj proporcjonalnie" data-resize="1" onPointerDown={(e)=>startResize(e, idx, 'both')} style={{position:'absolute', right:2, bottom:2, width:16, height:16, border:'1px solid #475569', background:'#e2e8f0', borderRadius:4, cursor:'nwse-resize', display:'grid', placeItems:'center', fontSize:10, color:'#334155', zIndex:2}}>◢</div>)}
                           </div>
                         )
                       }
@@ -424,7 +467,7 @@ function renderLabelPages(){
                     {imgSrc && imgSrc!=='ERROR' ? (
                       <div className="barcode-wrap" style={{position:'relative', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center'}}>
                         <img src={imgSrc} alt="barcode" draggable={false} style={{maxWidth:'100%',maxHeight:'100%', pointerEvents:'none'}} />
-                        {editMode && (<div title="Skaluj proporcjonalnie" data-resize="1" onPointerDown={(e)=>startResize(e, idx, 'both')} style={{position:'absolute', right:-6, bottom:-6, width:16, height:16, border:'1px solid #475569', background:'#e2e8f0', borderRadius:4, cursor:'nwse-resize', display:'grid', placeItems:'center', fontSize:10, color:'#334155', zIndex:2}}>◢</div>)}
+                        {editMode && (<div title="Skaluj proporcjonalnie" data-resize="1" onPointerDown={(e)=>startResize(e, idx, 'both')} style={{position:'absolute', right:2, bottom:2, width:16, height:16, border:'1px solid #475569', background:'#e2e8f0', borderRadius:4, cursor:'nwse-resize', display:'grid', placeItems:'center', fontSize:10, color:'#334155', zIndex:2}}>◢</div>)}
                       </div>
                     ) : (imgSrc==='ERROR' ? <span className="small" style={{color:'#b91c1c'}}>błąd</span> : <span className="small">pusta</span>)}
                   </div>
@@ -441,18 +484,28 @@ function renderLabelPages(){
   function startResize(e, labelIndex, axis='both'){
     if (!editMode) return
     const startX = e.clientX; const startY = e.clientY
+    const wrapEl = e.currentTarget && e.currentTarget.parentElement
+    const rect = wrapEl ? wrapEl.getBoundingClientRect() : { width: 250, height: 250 }
+    const startW = Math.max(1, rect.width)
+    const startH = Math.max(1, rect.height)
     const base = sizeOverrides[labelIndex] || { x:1, y:1 }
     const baseX = editAll ? globalMulX : base.x; const baseY = editAll ? globalMulY : base.y
     function onMove(ev){
       const dx = (ev.clientX - startX); const dy = (ev.clientY - startY)
       let newX = baseX, newY = baseY
-      if (axis==='x') newX = Math.max(0.2, Math.min(5, baseX + dx/250))
-      else if (axis==='y') newY = Math.max(0.2, Math.min(5, baseY + dy/250))
-      else { const d = (dx+dy)/250; newX = Math.max(0.2, Math.min(5, baseX + d)); newY = Math.max(0.2, Math.min(5, baseY + d)) }
+      if (axis==='x') newX = Math.max(0.2, Math.min(5, baseX * (1 + dx / startW)))
+      else if (axis==='y') newY = Math.max(0.2, Math.min(5, baseY * (1 + dy / startH)))
+      else {
+        const scale = 1 + Math.max(dx / startW, dy / startH)
+        const clamped = Math.max(0.2, Math.min(5, scale))
+        newX = Math.max(0.2, Math.min(5, baseX * clamped))
+        newY = Math.max(0.2, Math.min(5, baseY * clamped))
+      }
       if (editAll){ setGlobalMulX(newX); setGlobalMulY(lockAspect?newX:newY) }
       else { setSizeOverrides(prev => ({ ...prev, [labelIndex]: { x:newX, y: (lockAspect && axis!=='x') ? newX : newY } })) }
     }
     const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp) }
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch(_){}
     window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp); e.preventDefault(); e.stopPropagation()
   }
 
@@ -496,19 +549,20 @@ function renderLabelPages(){
       for (let i=0;i<perPage;i++) {
         const g=p*perPage+i; const idx=g - skip; const item = idx>=0 && idx<labels.length ? labels[idx] : null;
         if (!item) continue;
+        const is2d = TWO_D_SET.has(item.bcid);
         let x, y, drawW, drawH;
         const mulX = editAll?globalMulX:((sizeOverrides[idx]?.x)||1);
         const mulY = editAll?globalMulY:((sizeOverrides[idx]?.y)||1);
         if (!freeLayout){
           const col = i % cols; const row = Math.floor(i / cols);
           const innerX = col*(cellW+gapMM); const innerY = row*(cellH+gapMM);
-          drawW = cellW*mulX; drawH = (TWO_D_SET.has(item.bcid)? (cellH*mulY) : (cellH*mulY*ONE_D_HEIGHT_RATIO));
+          drawW = cellW*mulX; drawH = (TWO_D_SET.has(item.bcid)? (cellH*mulY) : (cellH*mulY));
           x = padMM + innerX + (cellW - drawW)/2; y = padMM + innerY + (cellH - drawH)/2;
         } else {
           const col = i % cols; const row = Math.floor(i / cols);
           const defX = col*(cellW+gapMM); const defY = row*(cellH+gapMM);
           const pos = posOverrides[idx] || { x:defX, y:defY };
-          drawW = cellW*mulX; drawH = (TWO_D_SET.has(item.bcid)? (cellH*mulY) : (cellH*mulY*ONE_D_HEIGHT_RATIO));
+          drawW = cellW*mulX; drawH = (TWO_D_SET.has(item.bcid)? (cellH*mulY) : (cellH*mulY));
           x = padMM + pos.x; y = padMM + pos.y;
         }
 
@@ -518,12 +572,15 @@ function renderLabelPages(){
           try {
             const optsSvg = { bcid: resolveBcid(item.bcid), text:item.text, rotate:pageRotate||0 };
             const baseSvg = (Number(item.scale)||3) * (Number(pageScale)||1);
+            const heightSvg = Math.round((Number(item.height)||50) * (Number(pageScale)||1) * (editAll?globalMulY:((sizeOverrides[idx]?.y)||1)));
             if (TWO_D_SET.has(item.bcid)) { optsSvg.scaleX=baseSvg; optsSvg.scaleY=baseSvg; }
-            else { optsSvg.scaleX=baseSvg; optsSvg.includetext=true; optsSvg.textxalign='center'; optsSvg.textfont=hrtFont; }
+            else { optsSvg.scaleX=baseSvg; optsSvg.height=heightSvg; optsSvg.includetext=true; optsSvg.textxalign='center'; optsSvg.textfont=hrtFont; }
             const svgStr = toSvg(optsSvg);
             if (svgStr){
               const svgEl = new DOMParser().parseFromString(svgStr, 'image/svg+xml').documentElement;
-              window.svg2pdf(svgEl, pdf, {x, y, width: drawW, height: drawH});
+              const size = getSvgSize(svgStr);
+              const fit = (is2d && size) ? fitRect(x, y, drawW, drawH, size.w, size.h) : { x, y, w: drawW, h: drawH };
+              window.svg2pdf(svgEl, pdf, {x: fit.x, y: fit.y, width: fit.w, height: fit.h});
               usedVector = true;
             }
           } catch(_){ usedVector = false; }
@@ -536,10 +593,13 @@ function renderLabelPages(){
           if (TWO_D_SET.has(item.bcid)) { opts.scaleX=base; opts.scaleY=base; }
           else {
             opts.scaleX = base;
+            opts.height = Math.round((Number(item.height)||50) * (Number(pageScale)||1) * (editAll?globalMulY:((sizeOverrides[idx]?.y)||1)));
             opts.includetext=true; opts.textxalign='center'; opts.textfont=hrtFont;
           }
           const png = makeBitmap(opts);
-          pdf.addImage(png, 'PNG', x, y, drawW, drawH);
+          const size = await getImageSize(png);
+          const fit = (is2d && size) ? fitRect(x, y, drawW, drawH, size.w, size.h) : { x, y, w: drawW, h: drawH };
+          pdf.addImage(png, 'PNG', fit.x, fit.y, fit.w, fit.h);
         }
       } // end perPage
     } // end pages
@@ -736,6 +796,28 @@ function renderLabelPages(){
                     <input className="input" style={{width:80}} type="number" min="1" value={rows} onChange={e=>setRows(parseInt(e.target.value||'1',10))} />
                   </div>
                 </Field>
+                <div style={{width:1, alignSelf:'stretch', background:'var(--border)', margin:'0 6px'}} />
+                <Field label={t('labels.sheetCode')}>
+                  <div className="hstack">
+                    <select className="select" value={sheetBcid} onChange={e=>{
+                      const next = e.target.value
+                      setSheetBcid(next)
+                      if (changeAllCodes){
+                        setLabels(prev => prev.map(l => ({ ...l, bcid: next })))
+                      } else if (selectedIdx!=null){
+                        setLabels(prev => prev.map((l,i) => i===selectedIdx ? ({ ...l, bcid: next }) : l))
+                      } else {
+                        notify(t('labels.selectLabelOrAll'))
+                      }
+                    }}>
+                      {POPULAR_CODE_IDS.map(id => <option key={id} value={id}>{t(`codes.${id.replace('-','_')}.label`)}</option>)}
+                    </select>
+                    <label className="hstack small" style={{marginLeft:8, whiteSpace:'nowrap'}}>
+                      <input type="checkbox" checked={changeAllCodes} onChange={e=>setChangeAllCodes(e.target.checked)} />
+                      {t('labels.changeAllCodes')}
+                    </label>
+                  </div>
+                </Field>
               </div>
 
               <div className="hstack">
@@ -751,11 +833,13 @@ function renderLabelPages(){
                 <Field label={t('labels.scaleX')}>
                   <input className="input" style={{width:120}} type="number" min="0.2" step="0.1" value={pageScale} onChange={e=>setPageScale(parseFloat(e.target.value||'1'))} />
                 </Field>
-                <Field label="{t('labels.rotateOnSheet')}">
+                <Field label={t('labels.rotateOnSheet')}>
                   <select className="select" value={pageRotate} onChange={e=>setPageRotate(parseInt(e.target.value,10))}>
                     <option value={0}>0°</option><option value={90}>90°</option><option value={180}>180°</option><option value={270}>270°</option>
                   </select>
                 </Field>
+              </div>
+              <div className="hstack" style={{gap:12, flexWrap:'nowrap', marginTop:6}}>
                 <label className="hstack small">
                   <input type="checkbox" checked={showGrid} onChange={e=>setShowGrid(e.target.checked)} />
                   {t('labels.showGrid')}
@@ -770,27 +854,27 @@ function renderLabelPages(){
                 </label>
                 <label className="hstack small">
                   <input type="checkbox" checked={editAll} onChange={e=>onToggleEditAll(e.target.checked)} />
-                  {t('labels.editMode')}
+                  {t('labels.editAll')}
                 </label>
-                {editAll && (
-                  <div className="vstack" style={{gap:4}}>
-                    <label className="hstack small">
-                      <input type="checkbox" checked={lockAspect} onChange={e=>setLockAspect(e.target.checked)} />
-                      Zablokuj proporcje
-                    </label>
-                    <div className="hstack" style={{alignItems:'center'}}>
-                      <span className="small">{t('labels.widthShort')} ×</span>
-                      <input className="input" type="range" min="0.2" max="5" step="0.05" value={globalMulX} onChange={e=>{ const v=parseFloat(e.target.value); setGlobalMulX(v); if(lockAspect) setGlobalMulY(v); }} style={{width:280}} />
-                      <input className="input" type="number" min="0.2" max="5" step="0.1" value={globalMulX} onChange={e=>{ const v=parseFloat(e.target.value||'1'); setGlobalMulX(v); if(lockAspect) setGlobalMulY(v); }} style={{width:100}} />
-                    </div>
-                    <div className="hstack" style={{alignItems:'center'}}>
-                      <span className="small">{t('labels.heightShort')} ×</span>
-                      <input className="input" type="range" min="0.2" max="5" step="0.05" value={globalMulY} onChange={e=>{ const v=parseFloat(e.target.value); setGlobalMulY(v); if(lockAspect) setGlobalMulX(v); }} style={{width:280}} />
-                      <input className="input" type="number" min="0.2" max="5" step="0.1" value={globalMulY} onChange={e=>{ const v=parseFloat(e.target.value||'1'); setGlobalMulY(v); if(lockAspect) setGlobalMulX(v); }} style={{width:100}} />
-                    </div>
-                  </div>
-                )}
               </div>
+              {editAll && (
+                <div className="hstack" style={{alignItems:'center', gap:10, marginTop:6, flexWrap:'nowrap'}}>
+                  <label className="hstack small" style={{whiteSpace:'nowrap'}}>
+                    <input type="checkbox" checked={lockAspect} onChange={e=>setLockAspect(e.target.checked)} />
+                    Zablokuj proporcje
+                  </label>
+                  <div className="hstack" style={{alignItems:'center'}}>
+                    <span className="small">{t('labels.widthShort')} ×</span>
+                    <input className="input" type="range" min="0.2" max="5" step="0.05" value={globalMulX} onChange={e=>{ const v=parseFloat(e.target.value); setGlobalMulX(v); if(lockAspect) setGlobalMulY(v); }} style={{width:220}} />
+                    <input className="input" type="number" min="0.2" max="5" step="0.1" value={globalMulX} onChange={e=>{ const v=parseFloat(e.target.value||'1'); setGlobalMulX(v); if(lockAspect) setGlobalMulY(v); }} style={{width:90}} />
+                  </div>
+                  <div className="hstack" style={{alignItems:'center'}}>
+                    <span className="small">{t('labels.heightShort')} ×</span>
+                    <input className="input" type="range" min="0.2" max="5" step="0.05" value={globalMulY} onChange={e=>{ const v=parseFloat(e.target.value); setGlobalMulY(v); if(lockAspect) setGlobalMulX(v); }} style={{width:220}} />
+                    <input className="input" type="number" min="0.2" max="5" step="0.1" value={globalMulY} onChange={e=>{ const v=parseFloat(e.target.value||'1'); setGlobalMulY(v); if(lockAspect) setGlobalMulX(v); }} style={{width:90}} />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="hstack" style={{alignItems:'center', gap:12, flexWrap:'wrap'}}>
@@ -833,12 +917,12 @@ function renderLabelPages(){
                   <span>{t('labels.dX')}</span>
                   <input className="input" type="number" style={{width:90}} value={0} onChange={()=>{}} onBlur={(e)=>{
                     const dx = parseFloat(e.target.value||'0'); e.target.value='0'
-                    setPosOverrides(prev=>{ const out={...prev}; for(let i=0;i<labels.length;i++){ const base = out[i] ?? defaultPosForIndex(i); out[i]=clampPos(i, snapPos({ x: base.x + dx, y: base.y })) } return out })
+                    setPosOverrides(prev=>{ const out={...prev}; for(let i=0;i<labels.length;i++){ const base = out[i] ?? defaultPosForIndex(i); const next = snapPos({ x: base.x + dx, y: base.y }); out[i]= showGrid ? clampPosToCell(i, next) : clampPos(i, next) } return out })
                   }}/>
                   <span>{t('labels.dY')}</span>
                   <input className="input" type="number" style={{width:90}} value={0} onChange={()=>{}} onBlur={(e)=>{
                     const dy = parseFloat(e.target.value||'0'); e.target.value='0'
-                    setPosOverrides(prev=>{ const out={...prev}; for(let i=0;i<labels.length;i++){ const base = out[i] ?? defaultPosForIndex(i); out[i]=clampPos(i, snapPos({ x: base.x, y: base.y + dy })) } return out })
+                    setPosOverrides(prev=>{ const out={...prev}; for(let i=0;i<labels.length;i++){ const base = out[i] ?? defaultPosForIndex(i); const next = snapPos({ x: base.x, y: base.y + dy }); out[i]= showGrid ? clampPosToCell(i, next) : clampPos(i, next) } return out })
                   }}/>
                 </div>
 
@@ -854,45 +938,55 @@ function renderLabelPages(){
                 <button className="button" onClick={clearLabels}>{t('labels.clearLabels')}</button>
  <div className="hstack" style={{marginLeft:16, gap:8}}>
    <button className="button icon-btn" title="{t('labels.alignLeft')}" onClick={()=>{
-     if (editAll){ setPosOverrides(prev=>{ const out={...prev}; for(let i=0;i<labels.length;i++){ const p=clampPos(i, snapPos({x:0,y:(out[i]?.y ?? defaultPosForIndex(i).y)})); out[i]=p } return out }) }
-     else if (selectedIdx!=null){ setPosOverrides(prev=>({ ...prev, [selectedIdx]: clampPos(selectedIdx, snapPos({ x:0, y:(prev[selectedIdx]?.y ?? defaultPosForIndex(selectedIdx).y) })) })) }
-   }}>
+      if (editAll){
+        setPosOverrides(prev=>{ const out={...prev}; for(let i=0;i<labels.length;i++){ const base = out[i] ?? defaultPosForIndex(i); const x = showGrid ? defaultPosForIndex(i).x : 0; const p = snapPos({x, y: base.y}); out[i]= showGrid ? clampPosToCell(i, p) : clampPos(i, p) } return out })
+      } else if (selectedIdx!=null){
+        setPosOverrides(prev=>{ const base = prev[selectedIdx] ?? defaultPosForIndex(selectedIdx); const x = showGrid ? defaultPosForIndex(selectedIdx).x : 0; const p = snapPos({ x, y: base.y }); return { ...prev, [selectedIdx]: showGrid ? clampPosToCell(selectedIdx, p) : clampPos(selectedIdx, p) } })
+      }}}>
      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
        <rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#94a3b8"/>
        <path d="M6 3v18M6 8h10M6 16h12" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round"/>
      </svg>
    </button>
    <button className="button icon-btn" title="Wyśrodkuj poziomo" onClick={()=>{
-     if (editAll){ setPosOverrides(prev=>{ const out={...prev}; const { innerW } = metrics(); for(let i=0;i<labels.length;i++){ const { w }=nodeSizeMM(i); const p=clampPos(i, snapPos({x:(innerW - w)/2, y:(out[i]?.y ?? defaultPosForIndex(i).y)})); out[i]=p } return out }) }
-     else if (selectedIdx!=null){ const { innerW } = metrics(); const { w } = nodeSizeMM(selectedIdx); setPosOverrides(prev=>({ ...prev, [selectedIdx]: clampPos(selectedIdx, snapPos({ x:(innerW - w)/2, y:(prev[selectedIdx]?.y ?? defaultPosForIndex(selectedIdx).y) })) })) }
-   }}>
+      if (editAll){
+        setPosOverrides(prev=>{ const out={...prev}; const { innerW, cellW } = metrics(); for(let i=0;i<labels.length;i++){ const { w }=nodeSizeMM(i); const base = out[i] ?? defaultPosForIndex(i); const x = showGrid ? (defaultPosForIndex(i).x + (cellW - w)/2) : (innerW - w)/2; const p = snapPos({x, y: base.y}); out[i]= showGrid ? clampPosToCell(i, p) : clampPos(i, p) } return out })
+      } else if (selectedIdx!=null){
+        const { innerW, cellW } = metrics(); const { w } = nodeSizeMM(selectedIdx); const base = (posOverrides[selectedIdx] ?? defaultPosForIndex(selectedIdx)); const x = showGrid ? (defaultPosForIndex(selectedIdx).x + (cellW - w)/2) : (innerW - w)/2; const p = snapPos({ x, y: base.y }); setPosOverrides(prev=>({ ...prev, [selectedIdx]: showGrid ? clampPosToCell(selectedIdx, p) : clampPos(selectedIdx, p) }))
+      }}}>
      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
        <rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#94a3b8"/>
        <path d="M12 3v18M6 8h12M4 16h16" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round"/>
      </svg>
    </button>
    <button className="button icon-btn" title="{t('labels.alignTop')}" onClick={()=>{
-     if (editAll){ setPosOverrides(prev=>{ const out={...prev}; for(let i=0;i<labels.length;i++){ const p=clampPos(i, snapPos({x:(out[i]?.x ?? defaultPosForIndex(i).x), y:0})); out[i]=p } return out }) }
-     else if (selectedIdx!=null){ setPosOverrides(prev=>({ ...prev, [selectedIdx]: clampPos(selectedIdx, snapPos({ x:(prev[selectedIdx]?.x ?? defaultPosForIndex(selectedIdx).x), y:0 })) })) }
-   }}>
+      if (editAll){
+        setPosOverrides(prev=>{ const out={...prev}; for(let i=0;i<labels.length;i++){ const base = out[i] ?? defaultPosForIndex(i); const y = showGrid ? defaultPosForIndex(i).y : 0; const p = snapPos({x: base.x, y}); out[i]= showGrid ? clampPosToCell(i, p) : clampPos(i, p) } return out })
+      } else if (selectedIdx!=null){
+        setPosOverrides(prev=>{ const base = prev[selectedIdx] ?? defaultPosForIndex(selectedIdx); const y = showGrid ? defaultPosForIndex(selectedIdx).y : 0; const p = snapPos({ x: base.x, y }); return { ...prev, [selectedIdx]: showGrid ? clampPosToCell(selectedIdx, p) : clampPos(selectedIdx, p) } })
+      }}}>
      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
        <rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#94a3b8"/>
        <path d="M3 6h18M8 6v10M16 6v12" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round"/>
      </svg>
    </button>
    <button className="button icon-btn" title="{t('labels.centerV')}" onClick={()=>{
-     if (editAll){ setPosOverrides(prev=>{ const out={...prev}; const { innerH } = metrics(); for(let i=0;i<labels.length;i++){ const { h }=nodeSizeMM(i); const p=clampPos(i, snapPos({x:(out[i]?.x ?? defaultPosForIndex(i).x), y:(innerH - h)/2})); out[i]=p } return out }) }
-     else if (selectedIdx!=null){ const { innerH } = metrics(); const { h } = nodeSizeMM(selectedIdx); setPosOverrides(prev=>({ ...prev, [selectedIdx]: clampPos(selectedIdx, snapPos({ x:(prev[selectedIdx]?.x ?? defaultPosForIndex(selectedIdx).x), y:(innerH - h)/2 })) })) }
-   }}>
+      if (editAll){
+        setPosOverrides(prev=>{ const out={...prev}; const { innerH, cellH } = metrics(); for(let i=0;i<labels.length;i++){ const { h }=nodeSizeMM(i); const base = out[i] ?? defaultPosForIndex(i); const y = showGrid ? (defaultPosForIndex(i).y + (cellH - h)/2) : (innerH - h)/2; const p = snapPos({x: base.x, y}); out[i]= showGrid ? clampPosToCell(i, p) : clampPos(i, p) } return out })
+      } else if (selectedIdx!=null){
+        const { innerH, cellH } = metrics(); const { h } = nodeSizeMM(selectedIdx); const base = (posOverrides[selectedIdx] ?? defaultPosForIndex(selectedIdx)); const y = showGrid ? (defaultPosForIndex(selectedIdx).y + (cellH - h)/2) : (innerH - h)/2; const p = snapPos({ x: base.x, y }); setPosOverrides(prev=>({ ...prev, [selectedIdx]: showGrid ? clampPosToCell(selectedIdx, p) : clampPos(selectedIdx, p) }))
+      }}}>
      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
        <rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#94a3b8"/>
        <path d="M3 12h18M8 4v16M16 6v12" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round"/>
      </svg>
    </button>
    <button className="button icon-btn" title="Wyśrodkuj (H+V)" onClick={()=>{
-     if (editAll){ setPosOverrides(prev=>{ const out={...prev}; const { innerW, innerH } = metrics(); for(let i=0;i<labels.length;i++){ const { w,h }=nodeSizeMM(i); out[i]=clampPos(i, snapPos({x:(innerW - w)/2, y:(innerH - h)/2})) } return out }) }
-     else if (selectedIdx!=null){ const { innerW, innerH } = metrics(); const { w,h } = nodeSizeMM(selectedIdx); setPosOverrides(prev=>({ ...prev, [selectedIdx]: clampPos(selectedIdx, snapPos({ x:(innerW - w)/2, y:(innerH - h)/2 })) })) }
-   }}>
+      if (editAll){
+        setPosOverrides(prev=>{ const out={...prev}; const { innerW, innerH, cellW, cellH } = metrics(); for(let i=0;i<labels.length;i++){ const { w,h }=nodeSizeMM(i); const x = showGrid ? (defaultPosForIndex(i).x + (cellW - w)/2) : (innerW - w)/2; const y = showGrid ? (defaultPosForIndex(i).y + (cellH - h)/2) : (innerH - h)/2; const p = snapPos({x, y}); out[i]= showGrid ? clampPosToCell(i, p) : clampPos(i, p) } return out })
+      } else if (selectedIdx!=null){
+        const { innerW, innerH, cellW, cellH } = metrics(); const { w,h } = nodeSizeMM(selectedIdx); const x = showGrid ? (defaultPosForIndex(selectedIdx).x + (cellW - w)/2) : (innerW - w)/2; const y = showGrid ? (defaultPosForIndex(selectedIdx).y + (cellH - h)/2) : (innerH - h)/2; const p = snapPos({ x, y }); setPosOverrides(prev=>({ ...prev, [selectedIdx]: showGrid ? clampPosToCell(selectedIdx, p) : clampPos(selectedIdx, p) }))
+      }}}>
      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
        <rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#94a3b8"/>
        <path d="M12 4v16M4 12h16M8 8h8M8 16h8" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round"/>
@@ -916,3 +1010,8 @@ function renderLabelPages(){
     </div>
   )
 }
+
+
+
+
+

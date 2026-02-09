@@ -34,15 +34,15 @@ const TRANSLATIONS = {
       pdf417:  { label: "PDF417",    note: "Dużo danych, boarding pass." },
       azteccode: { label: "Aztec",   note: "Bilety/transport." },
       code128: { label: "Code 128",  note: "Pełne ASCII. Uniwersalny (GS1‑128)." },
-      code39:  { label: "Code 39",   note: "A–Z 0–9 i - . $ / + % oraz spacja." },
       ean13:   { label: "EAN‑13",    note: "12–13 cyfr (ostatnia kontrolna)." },
       ean8:    { label: "EAN‑8",     note: "7–8 cyfr (ostatnia kontrolna)." },
-      upca:    { label: "UPC‑A",     note: "11–12 cyfr (USA/retail)." },
-      upce:    { label: "UPC‑E",     note: "6–8 cyfr (kompaktowy UPC)." },
       itf14:   { label: "ITF‑14",    note: "13–14 cyfr (opakowania zbiorcze)." },
       gs1_128: { label: "GS1‑128",   note: "Użyj (AI) w nawiasach, np. (01)(10)." },
     },
     labels: {
+      sheetCode: "Kod (arkusz)",
+      changeAllCodes: "Zmie\u0144 wszystkie",
+      selectLabelOrAll: "Wybierz etykiet\u0119 lub zaznacz \"Zmie\u0144 wszystkie\"",
       gridTitle: "Etykiety",
       margins: "Margines (mm)",
       gutter: "Odstęp (mm)",
@@ -107,19 +107,19 @@ const TRANSLATIONS = {
     },
     codes: {
       qrcode:  { label: "QR Code",   note: "Text/URL/GS1. Strong error correction." },
-      datamatrix:{ label: "Data Matrix", note: "Small labels, GS1." },
-      pdf417:  { label: "PDF417",    note: "Large data, boarding passes." },
+      datamatrix:{ label: "Data Matrix", note:"Small labels, GS1." },
+      pdf417:  { label: "PDF417",    note: "Large payloads, boarding pass." },
       azteccode: { label: "Aztec",   note: "Tickets/transport." },
       code128: { label: "Code 128",  note: "Full ASCII. Universal (GS1‑128)." },
-      code39:  { label: "Code 39",   note: "A–Z 0–9 and - . $ / + % and space." },
       ean13:   { label: "EAN‑13",    note: "12–13 digits (last is check)." },
       ean8:    { label: "EAN‑8",     note: "7–8 digits (last is check)." },
-      upca:    { label: "UPC‑A",     note: "11–12 digits (US retail)." },
-      upce:    { label: "UPC‑E",     note: "6–8 digits (compact UPC)." },
-      itf14:   { label: "ITF‑14",    note: "13–14 digits (shipping cases)." },
+      itf14:   { label: "ITF‑14",    note: "13–14 digits (case-level)." },
       gs1_128: { label: "GS1‑128",   note: "Use (AI) in parentheses, e.g., (01)(10)." },
     },
     labels: {
+      sheetCode: "Code (sheet)",
+      changeAllCodes: "Change all",
+      selectLabelOrAll: "Select a label or check \"Change all\"",
       gridTitle: "Labels",
       margins: "Margins (mm)",
       gutter: "Gutter (mm)",
@@ -186,3 +186,7 @@ export function I18nProvider({ children }){
 
 export function useI18n(){ return useContext(I18nCtx); }
 export const TRANSLATIONS_RAW = TRANSLATIONS;
+
+
+
+
