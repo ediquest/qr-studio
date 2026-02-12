@@ -628,70 +628,21 @@ export default function BarcodeStudio() {
       {tab==='labels' && (
         <LabelsTab
           t={t}
-          presetKey={presetKey}
-          setPresetKey={setPresetKey}
           presets={PRESETS}
-          pageW={pageW}
-          setPageW={setPageW}
-          pageH={pageH}
-          setPageH={setPageH}
-          cols={cols}
-          setCols={setCols}
-          rows={rows}
-          setRows={setRows}
-          sheetBcid={sheetBcid}
-          setSheetBcid={setSheetBcid}
-          changeAllCodes={changeAllCodes}
-          setChangeAllCodes={setChangeAllCodes}
-          selectedIdx={selectedIdx}
-          setLabels={setLabels}
-          notify={notify}
           popularCodeIds={POPULAR_CODE_IDS}
-          padMM={padMM}
-          setPadMM={setPadMM}
-          gapMM={gapMM}
-          setGapMM={setGapMM}
-          skip={skip}
-          setSkip={setSkip}
-          pageScale={pageScale}
-          setPageScale={setPageScale}
-          pageRotate={pageRotate}
-          setPageRotate={setPageRotate}
-          showGrid={showGrid}
-          setShowGrid={setShowGrid}
-          editMode={editMode}
-          setEditMode={setEditMode}
-          freeLayout={freeLayout}
-          setFreeLayout={setFreeLayout}
-          editAll={editAll}
-          onToggleEditAll={onToggleEditAll}
-          lockAspect={lockAspect}
-          setLockAspect={setLockAspect}
-          globalMulX={globalMulX}
-          setGlobalMulX={setGlobalMulX}
-          globalMulY={globalMulY}
-          setGlobalMulY={setGlobalMulY}
-          snapMM={snapMM}
-          setSnapMM={setSnapMM}
-          posOverrides={posOverrides}
-          defaultPosForIndex={defaultPosForIndex}
-          clampPos={clampPos}
-          snapPos={snapPos}
-          setPosOverrides={setPosOverrides}
-          labels={labels}
-          clampPosToCell={clampPosToCell}
-          perPage={perPage}
-          pages={pages}
-          sheetZoom={sheetZoom}
-          setZoomCentered={setZoomCentered}
-          exportPdf={exportPdf}
-          resetLayoutDefaults={resetLayoutDefaults}
-          clearLabels={clearLabels}
-          metrics={metrics}
-          nodeSizeMM={nodeSizeMM}
-          viewportRef={viewportRef}
-          contentRef={contentRef}
-          renderLabelPages={renderLabelPages}
+          layout={{
+            presetKey, setPresetKey, pageW, setPageW, pageH, setPageH, cols, setCols, rows, setRows,
+            sheetBcid, setSheetBcid, changeAllCodes, setChangeAllCodes, selectedIdx, padMM, setPadMM,
+            gapMM, setGapMM, skip, setSkip, pageScale, setPageScale, pageRotate, setPageRotate,
+            showGrid, setShowGrid, editMode, setEditMode, freeLayout, setFreeLayout, editAll, lockAspect,
+            setLockAspect, globalMulX, setGlobalMulX, globalMulY, setGlobalMulY, snapMM, setSnapMM,
+            posOverrides, labels, perPage, pages, sheetZoom, viewportRef, contentRef,
+          }}
+          actions={{
+            setLabels, notify, onToggleEditAll, defaultPosForIndex, clampPos, snapPos, setPosOverrides,
+            clampPosToCell, setZoomCentered, exportPdf, resetLayoutDefaults, clearLabels, metrics,
+            nodeSizeMM, renderLabelPages,
+          }}
         />
       )}
 
