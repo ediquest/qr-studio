@@ -65,7 +65,7 @@ function cleanBwipError(err, t) {
 
 export default function useGeneratorState({ t, toSvg, makeBitmap }) {
   const [bcid, setBcid] = useState('qrcode')
-  const [text, setText] = useState('DOCK.001')
+  const [text, setText] = useState('Hello World!')
   const [scale, setScale] = useState(4)
   const [height, setHeight] = useState(50)
   const [includeText, setIncludeText] = useState(true)

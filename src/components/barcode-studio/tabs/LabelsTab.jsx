@@ -258,7 +258,6 @@ export default function LabelsTab({
             {t('labels.zoom')}: {Math.round(sheetZoom * 100)}%
             <input className="input" type="range" min="50" max="300" step="10" value={Math.round(sheetZoom * 100)} onChange={(e) => setZoomCentered(parseInt(e.target.value, 10) / 100)} style={{ width: 140 }} />
           </div>
-          <button className="button" onClick={openSaveSheetModal}>{t('sheets.saveCurrent')}</button>
           <button className="button primary" onClick={exportPdf}>{t('labels.exportPdf')}</button>
         </div>
         )}
