@@ -4,7 +4,7 @@ export default function useLabelsLayoutState({ presets }) {
   const [labels, setLabels] = useState([])
   const [skip, setSkip] = useState(0)
   const [showGrid, setShowGrid] = useState(true)
-  const [editMode, setEditMode] = useState(false)
+  const [editMode, setEditMode] = useState(true)
   const [editAll, setEditAll] = useState(false)
   const [globalMulX, setGlobalMulX] = useState(1)
   const [globalMulY, setGlobalMulY] = useState(1)
@@ -28,8 +28,6 @@ export default function useLabelsLayoutState({ presets }) {
   const [hoverCell, setHoverCell] = useState(null)
   const [snapMM, setSnapMM] = useState(0)
   const [selectedIdx, setSelectedIdx] = useState(null)
-  const [sheetBcid, setSheetBcid] = useState('qrcode')
-  const [changeAllCodes, setChangeAllCodes] = useState(false)
 
   useEffect(() => {
     setCols(preset.cols)
@@ -38,12 +36,8 @@ export default function useLabelsLayoutState({ presets }) {
     setPageH(preset.pageH)
     setGapMM(preset.gapMM)
     setPadMM(preset.padMM)
+    setSheetZoom(presetKey === 'a4-1x1p' || presetKey === 'a4-1x1l' ? 0.5 : 1)
   }, [presetKey, preset.cols, preset.rows, preset.pageW, preset.pageH, preset.gapMM, preset.padMM])
-
-  useEffect(() => {
-    const b = (selectedIdx != null && labels[selectedIdx]?.bcid) || labels[0]?.bcid || 'qrcode'
-    setSheetBcid(b)
-  }, [selectedIdx, labels])
 
   const perPage = Math.max(1, (cols | 0) * (rows | 0))
   const totalCells = (skip | 0) + labels.length
@@ -101,10 +95,6 @@ export default function useLabelsLayoutState({ presets }) {
     setSnapMM,
     selectedIdx,
     setSelectedIdx,
-    sheetBcid,
-    setSheetBcid,
-    changeAllCodes,
-    setChangeAllCodes,
     perPage,
     pages,
   }

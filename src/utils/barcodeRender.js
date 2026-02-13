@@ -30,13 +30,35 @@ export function toSvg(opts) {
 }
 
 export function makeBitmap(opts) {
+  const {
+    canvasSize = 1000,
+    canvasWidth = null,
+    canvasHeight = null,
+    imageFormat = 'png',
+    imageQuality = 0.8,
+    ...bwipOpts
+  } = (opts || {})
+  const size = Math.max(220, Math.min(1800, Math.round(canvasSize)))
+  const width = canvasWidth != null ? Math.max(220, Math.min(1800, Math.round(canvasWidth))) : size
+  const height = canvasHeight != null ? Math.max(220, Math.min(1800, Math.round(canvasHeight))) : size
   const canvas = document.createElement('canvas')
-  canvas.width = 1600
-  canvas.height = 1600
+  canvas.width = width
+  canvas.height = height
+  const fmt = String(imageFormat).toLowerCase()
+  if (fmt === 'jpeg' || fmt === 'jpg') {
+    const bg = canvas.getContext('2d')
+    if (bg) {
+      bg.fillStyle = '#ffffff'
+      bg.fillRect(0, 0, width, height)
+    }
+  }
   const fn = bw.toCanvas
   if (!fn) throw new Error('bwip-js: toCanvas not available')
-  const safe = { ...opts, rotate: rotCode(opts.rotate || 0) }
+  const safe = { ...bwipOpts, rotate: rotCode((bwipOpts && bwipOpts.rotate) || 0) }
   fn(canvas, safe)
+  if (fmt === 'jpeg' || fmt === 'jpg') {
+    return canvas.toDataURL('image/jpeg', Math.max(0.1, Math.min(1, Number(imageQuality) || 0.8)))
+  }
   return canvas.toDataURL('image/png')
 }
 
