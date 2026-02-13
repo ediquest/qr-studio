@@ -114,7 +114,7 @@ export default function BarcodeStudio() {
   } = useLabelsLayoutState({ presets: PRESETS })
 
   function notify(msg){ setToast(msg); setTimeout(()=>setToast(''), 1400) }
-  function addCurrentToLabels(){ setLabels(prev => [...prev, { bcid, text, scale, height }]); setTab('labels'); notify('Dodano 1 etykietę') }
+  function addCurrentToLabels(){ setLabels(prev => [...prev, { bcid, text, scale, height }]); notify('Dodano 1 etykiete') }
   function addAllFromBatch(rows){ const toAdd = rows.map(r => ({ bcid: batchBcid, text: r, scale, height })); if (!toAdd.length) return; setLabels(prev => [...prev, ...toAdd]); setTab('labels'); notify(`Dodano ${toAdd.length} etykiet`) }
   function clearLabels(){ setLabels([]); setSizeOverrides({}); setPosOverrides({}); notify('Wyczyszczono arkusze') }
 
@@ -651,6 +651,7 @@ export default function BarcodeStudio() {
     </div>
   )
 }
+
 
 
 

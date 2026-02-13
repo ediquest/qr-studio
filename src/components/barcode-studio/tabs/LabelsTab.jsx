@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 import Field from '../ui/Field.jsx'
 
 export default function LabelsTab({
@@ -32,17 +32,17 @@ export default function LabelsTab({
                 {presets.map((p) => (<option key={p.key} value={p.key}>{p.name}</option>))}
               </select>
             </Field>
-            <Field label="Strona (mm) – szer. × wys.">
+            <Field label="Strona (mm) - szer. x wys.">
               <div className="hstack">
                 <input className="input" style={{ width: 90 }} type="number" value={pageW} onChange={(e) => setPageW(parseFloat(e.target.value || '0'))} />
-                <span>×</span>
+                <span>x</span>
                 <input className="input" style={{ width: 90 }} type="number" value={pageH} onChange={(e) => setPageH(parseFloat(e.target.value || '0'))} />
               </div>
             </Field>
-            <Field label="Siatka – kol. × wiersze">
+            <Field label="Siatka - kol. x wiersze">
               <div className="hstack">
                 <input className="input" style={{ width: 80 }} type="number" min="1" value={cols} onChange={(e) => setCols(parseInt(e.target.value || '1', 10))} />
-                <span>×</span>
+                <span>x</span>
                 <input className="input" style={{ width: 80 }} type="number" min="1" value={rows} onChange={(e) => setRows(parseInt(e.target.value || '1', 10))} />
               </div>
             </Field>
@@ -85,7 +85,7 @@ export default function LabelsTab({
             </Field>
             <Field label={t('labels.rotateOnSheet')}>
               <select className="select" value={pageRotate} onChange={(e) => setPageRotate(parseInt(e.target.value, 10))}>
-                <option value={0}>0°</option><option value={90}>90°</option><option value={180}>180°</option><option value={270}>270°</option>
+                <option value={0}>0 deg</option><option value={90}>90 deg</option><option value={180}>180 deg</option><option value={270}>270 deg</option>
               </select>
             </Field>
           </div>
@@ -114,12 +114,12 @@ export default function LabelsTab({
                 Zablokuj proporcje
               </label>
               <div className="hstack" style={{ alignItems: 'center' }}>
-                <span className="small">{t('labels.widthShort')} ×</span>
+                <span className="small">{t('labels.widthShort')} x</span>
                 <input className="input" type="range" min="0.2" max="5" step="0.05" value={globalMulX} onChange={(e) => { const v = parseFloat(e.target.value); setGlobalMulX(v); if (lockAspect) setGlobalMulY(v) }} style={{ width: 220 }} />
                 <input className="input" type="number" min="0.2" max="5" step="0.1" value={globalMulX} onChange={(e) => { const v = parseFloat(e.target.value || '1'); setGlobalMulX(v); if (lockAspect) setGlobalMulY(v) }} style={{ width: 90 }} />
               </div>
               <div className="hstack" style={{ alignItems: 'center' }}>
-                <span className="small">{t('labels.heightShort')} ×</span>
+                <span className="small">{t('labels.heightShort')} x</span>
                 <input className="input" type="range" min="0.2" max="5" step="0.05" value={globalMulY} onChange={(e) => { const v = parseFloat(e.target.value); setGlobalMulY(v); if (lockAspect) setGlobalMulX(v) }} style={{ width: 220 }} />
                 <input className="input" type="number" min="0.2" max="5" step="0.1" value={globalMulY} onChange={(e) => { const v = parseFloat(e.target.value || '1'); setGlobalMulY(v); if (lockAspect) setGlobalMulX(v) }} style={{ width: 90 }} />
               </div>
@@ -170,7 +170,7 @@ export default function LabelsTab({
             }} />
           </div>
 
-          <div className="small">{t('labels.count')}: {labels.length} • {t('labels.perPage')}: {perPage} • {t('labels.pages')}: {pages}</div>
+          <div className="small">{t('labels.count')}: {labels.length} | {t('labels.perPage')}: {perPage} | {t('labels.pages')}: {pages}</div>
           <div className="hstack">
             <div className="hstack small" title="Ctrl+scroll = zoom">
               {t('labels.zoom')}: {Math.round(sheetZoom * 100)}%
@@ -193,7 +193,7 @@ export default function LabelsTab({
                   <path d="M6 3v18M6 8h10M6 16h12" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" />
                 </svg>
               </button>
-              <button className="button icon-btn" title="Wyśrodkuj poziomo" onClick={() => {
+              <button className="button icon-btn" title="WyĹ›rodkuj poziomo" onClick={() => {
                 if (editAll) {
                   setPosOverrides((prev) => { const out = { ...prev }; const { innerW, cellW } = metrics(); for (let i = 0; i < labels.length; i++) { const { w } = nodeSizeMM(i); const base = out[i] ?? defaultPosForIndex(i); const x = showGrid ? (defaultPosForIndex(i).x + (cellW - w) / 2) : (innerW - w) / 2; const p = snapPos({ x, y: base.y }); out[i] = showGrid ? clampPosToCell(i, p) : clampPos(i, p) } return out })
                 } else if (selectedIdx != null) {
@@ -229,7 +229,7 @@ export default function LabelsTab({
                   <path d="M3 12h18M8 4v16M16 6v12" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" />
                 </svg>
               </button>
-              <button className="button icon-btn" title="Wyśrodkuj (H+V)" onClick={() => {
+              <button className="button icon-btn" title="WyĹ›rodkuj (H+V)" onClick={() => {
                 if (editAll) {
                   setPosOverrides((prev) => { const out = { ...prev }; const { innerW, innerH, cellW, cellH } = metrics(); for (let i = 0; i < labels.length; i++) { const { w, h } = nodeSizeMM(i); const x = showGrid ? (defaultPosForIndex(i).x + (cellW - w) / 2) : (innerW - w) / 2; const y = showGrid ? (defaultPosForIndex(i).y + (cellH - h) / 2) : (innerH - h) / 2; const p = snapPos({ x, y }); out[i] = showGrid ? clampPosToCell(i, p) : clampPos(i, p) } return out })
                 } else if (selectedIdx != null) {
@@ -261,3 +261,5 @@ export default function LabelsTab({
     </div>
   )
 }
+
+
