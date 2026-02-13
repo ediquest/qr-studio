@@ -111,11 +111,6 @@ export default function BatchTab({
   batchBcid,
   setBatchBcid,
   addAllFromBatch,
-  setLabels,
-  setTab,
-  scale,
-  height,
-  notify,
 }) {
   const [isDropActive, setIsDropActive] = useState(false)
   const [isWindowDrag, setIsWindowDrag] = useState(false)
@@ -123,6 +118,8 @@ export default function BatchTab({
   const dragDepthRef = useRef(0)
   const [rowSelection, setRowSelection] = useState({})
   const hasSelectedRows = batchRows.some((_, idx) => rowSelection[idx] ?? true)
+  const [batchCaptionMode, setBatchCaptionMode] = useState(false)
+  const [batchSeparator, setBatchSeparator] = useState(';')
 
   const [seqCount, setSeqCount] = useState(10)
   const [segments, setSegments] = useState([
@@ -132,11 +129,21 @@ export default function BatchTab({
   ])
 
   const [openPanel, setOpenPanel] = useState('batch')
+  const parseBatchText = (value) => parseLines(value, { splitCaption: batchCaptionMode, separator: batchSeparator })
+  const toBatchRow = (row) => {
+    if (row && typeof row === 'object') {
+      return {
+        text: String(row.text || '').trim(),
+        caption: String(row.caption || '').trim(),
+      }
+    }
+    return { text: String(row || '').trim(), caption: '' }
+  }
 
   const processTextFile = async (file) => {
     const text = await file.text()
     setBatchInput(text)
-    setBatchRows(parseLines(text))
+    setBatchRows(parseBatchText(text))
   }
 
   const processFile = async (file) => {
@@ -148,7 +155,7 @@ export default function BatchTab({
     if (isCsv) {
       parseCsv(
         file,
-        (rows) => setBatchRows(rows),
+        (rows) => setBatchRows(rows.map((row) => toBatchRow(row)).filter((row) => row.text)),
         (err) => alert(t('batch.errorCsv') + ': ' + err?.message)
       )
       return
@@ -212,7 +219,7 @@ export default function BatchTab({
       window.removeEventListener('dragleave', onWindowDragLeave)
       window.removeEventListener('drop', onWindowDrop)
     }
-  }, [t])
+  }, [t, batchCaptionMode, batchSeparator])
 
   useEffect(() => {
     setRowSelection(() => {
@@ -328,9 +335,29 @@ export default function BatchTab({
                 value={batchInput}
                 onChange={(e) => setBatchInput(e.target.value)}
               />
+              <div className="hstack" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <label className="hstack small">
+                  <input type="checkbox" checked={batchCaptionMode} onChange={(e) => setBatchCaptionMode(e.target.checked)} />
+                  {t('batch.captionMode')}
+                </label>
+                {batchCaptionMode ? (
+                  <label className="hstack small">
+                    {t('batch.captionSeparator')}
+                    <input
+                      className="input"
+                      type="text"
+                      value={batchSeparator}
+                      onChange={(e) => setBatchSeparator(e.target.value)}
+                      placeholder=";"
+                      style={{ width: 90 }}
+                    />
+                  </label>
+                ) : null}
+              </div>
+              {batchCaptionMode ? <div className="small">{t('batch.captionHelp')}</div> : null}
               <Toolbar>
                 <div style={{ flex: 1 }} />
-                <button className="button primary" onClick={() => setBatchRows(parseLines(batchInput))}>{t('batch.generateList')}</button>
+                <button className="button primary" onClick={() => setBatchRows(parseBatchText(batchInput))}>{t('batch.generateList')}</button>
               </Toolbar>
             </div>
           </AccordionBody>
@@ -411,7 +438,7 @@ export default function BatchTab({
                 <button
                   className="button primary"
                   style={{ marginBottom: 2 }}
-                  onClick={() => setBatchRows(generateSegmentSequence(segments, seqCount))}
+                  onClick={() => setBatchRows(generateSegmentSequence(segments, seqCount).map((row) => toBatchRow(row)).filter((row) => row.text))}
                 >
                   {t('batch.generateList')}
                 </button>
@@ -427,7 +454,10 @@ export default function BatchTab({
           <div className="small">{t('batch.clickToAddOne')}</div>
         </div>
         <div className="vstack">
-          {batchRows.map((row, idx) => (
+          {batchRows.map((rawRow, idx) => {
+            const row = toBatchRow(rawRow)
+            const showCaption = !!row.caption
+            return (
             <div key={idx} className="hstack" style={{ justifyContent: 'space-between', border: '1px solid var(--border)', borderRadius: 10, padding: 8 }}>
               <input
                 type="checkbox"
@@ -435,17 +465,19 @@ export default function BatchTab({
                 onChange={(e) => setRowSelection((prev) => ({ ...prev, [idx]: e.target.checked }))}
                 style={{ marginRight: 8 }}
               />
-              <div className="small" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row}</div>
+              <div className="small" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {row.text}
+                {showCaption ? ` [${row.caption}]` : ''}
+              </div>
               <button
                 className="button"
                 onClick={() => {
-                  setLabels((prev) => [...prev, { bcid: batchBcid, text: row, scale, height }])
-                  setTab('labels')
-                  notify(t('batch.addedOne'))
+                  addAllFromBatch([row], { single: true })
                 }}
               >{t('batch.addLabel')}</button>
             </div>
-          ))}
+            )
+          })}
         </div>
 
         <div className="hstack" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>

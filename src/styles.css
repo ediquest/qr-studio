@@ -87,6 +87,7 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
   border-color:#fca5a5;
 }
 .cell-highlight{ outline:3px solid #60a5fa; outline-offset:-3px }
+.cell-match-highlight{ outline:3px solid #22c55e; outline-offset:-3px }
 .small{font-size:12px;color:var(--muted)}
 .toast{position:fixed;right:16px;bottom:16px;background:#0ea5e9;color:#fff;padding:10px 12px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.15)}
 
@@ -95,7 +96,7 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 @media print{ .page-outline{ box-shadow:none; border:0 } }
 
 /* Zoomable viewport */
-.sheet-viewport{ overflow:auto; height:70vh; max-height:70vh; overscroll-behavior:contain; background:linear-gradient(180deg,#f1f5f9,transparent 60%); padding:8px; border-radius:12px; border:1px solid var(--border) }
+.sheet-viewport{ overflow:auto; height:70vh; max-height:70vh; overscroll-behavior:auto; background:linear-gradient(180deg,#f1f5f9,transparent 60%); padding:8px; border-radius:12px; border:1px solid var(--border) }
 .sheet-viewport.expanded{ height:84vh; max-height:84vh }
 .sheet-viewport.pan-ready{ cursor:grab }
 .sheet-viewport.pan-active{ cursor:grabbing; user-select:none }
@@ -244,6 +245,63 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
   display:grid;
   grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));
   gap:12px;
+}
+.sheet-search-rows{
+  display:grid;
+  gap:12px;
+}
+.sheet-search-row{
+  display:grid;
+  grid-template-columns:minmax(260px, 1fr) minmax(260px, 1fr);
+  gap:12px;
+  align-items:start;
+}
+.sheet-search-preview{
+  background:#f8fafc;
+  display:grid;
+  gap:8px;
+  cursor:pointer;
+  text-align:left;
+}
+.sheet-search-preview-code{
+  border:1px dashed #cbd5e1;
+  border-radius:10px;
+  padding:10px;
+  font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size:13px;
+  word-break:break-word;
+  background:#fff;
+}
+.sheet-search-preview-image{
+  border:1px dashed #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  min-height:110px;
+  padding:10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.sheet-search-preview-image img{
+  display:block;
+  max-width:100%;
+  max-height:130px;
+  object-fit:contain;
+}
+.sheet-tile-code{
+  border:1px dashed #cbd5e1;
+  border-radius:10px;
+  padding:8px 10px;
+  background:#fff;
+  font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size:12px;
+  word-break:break-word;
+  text-align:left;
+}
+@media (max-width: 980px){
+  .sheet-search-row{
+    grid-template-columns:1fr;
+  }
 }
 .sheet-tile{
   border:1px solid var(--border);

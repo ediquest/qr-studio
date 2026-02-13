@@ -21,6 +21,7 @@ export default function BarcodeStudio() {
   const [toast, setToast] = useState('')
   const [pdfQuality, setPdfQuality] = useState('lowest')
   const [selectedIds, setSelectedIds] = useState([])
+  const [matchedHighlightIdx, setMatchedHighlightIdx] = useState(null)
   const [marqueeRect, setMarqueeRect] = useState(null)
   const [previewRatios, setPreviewRatios] = useState({})
   const [savedSheets, setSavedSheets] = useState([])
@@ -233,10 +234,15 @@ export default function BarcodeStudio() {
     notify(t('sheets.saved'))
     closeSheetModal()
   }
-  function loadSavedSheet(id){
+  function loadSavedSheet(id, opts = {}){
     const item = savedSheets.find((s) => s.id === id)
     if (!item?.snapshot) return
+    const hitIdxRaw = opts?.highlightIndex
+    const hitIdx = Number.isInteger(hitIdxRaw) ? hitIdxRaw : null
+    const labelsCount = Array.isArray(item?.snapshot?.labels) ? item.snapshot.labels.length : 0
+    const validHitIdx = hitIdx != null && hitIdx >= 0 && hitIdx < labelsCount ? hitIdx : null
     applySheetSnapshot(item.snapshot)
+    setMatchedHighlightIdx(validHitIdx)
     setTab('labels')
     notify(t('sheets.loaded'))
   }
@@ -272,23 +278,34 @@ export default function BarcodeStudio() {
     setLabels(prev => [...prev, { bcid, text, scale, height, includeText: hrtOn, hrtSize, hrtGap, customCaptionEnabled: customOn, customCaptionText, customCaptionFont, customCaptionSize, customCaptionGap }])
     notify('Dodano 1 etykiete')
   }
-  function addAllFromBatch(rows){
-    const toAdd = rows.map(r => ({
+  function normalizeBatchRow(row){
+    if (row && typeof row === 'object') {
+      return {
+        text: String(row.text || '').trim(),
+        caption: String(row.caption || '').trim(),
+      }
+    }
+    return { text: String(row || '').trim(), caption: '' }
+  }
+  function addAllFromBatch(rows, opts = {}){
+    const single = !!opts?.single
+    const toAdd = rows.map(normalizeBatchRow).filter((row) => row.text).map((row) => ({
       bcid: batchBcid,
-      text: r,
+      text: row.text,
       scale,
       height,
-      includeText: true,
+      includeText: row.caption ? false : true,
       hrtSize,
       hrtGap,
-      customCaptionEnabled: false,
-      customCaptionText: '',
+      customCaptionEnabled: !!row.caption,
+      customCaptionText: row.caption || '',
       customCaptionFont,
-      customCaptionSize,
-      customCaptionGap: 0,
+      customCaptionSize: 10,
+      customCaptionGap,
     }))
     if (!toAdd.length) return
-    setLabels(prev => [...prev, ...toAdd]); setTab('labels'); notify(`Dodano ${toAdd.length} etykiet`)
+    setLabels(prev => [...prev, ...toAdd]); setTab('labels')
+    notify(single ? t('batch.addedOne') : t('batch.addedMany', { count: toAdd.length }))
   }
   function clearLabels(){ setLabels([]); setSizeOverrides({}); setPosOverrides({}); setSelectedIds([]); setSelectedIdx(null); notify('Wyczyszczono arkusze') }
 
@@ -945,7 +962,7 @@ export default function BarcodeStudio() {
                 const is2d = TWO_D_SET.has(item?.bcid||'')
                 const globalCellIndex = p*perPageLocal + i;
                 return (
-                  <div key={i} className={"label-cell "+((editAll || selectedIds.includes(idx))?"cell-highlight":"")} data-cell-index={globalCellIndex} data-label-idx={item ? idx : undefined}
+                  <div key={i} className={"label-cell "+((editAll || selectedIds.includes(idx))?"cell-highlight ":"")+((item && idx === matchedHighlightIdx)?"cell-match-highlight":"")} data-cell-index={globalCellIndex} data-label-idx={item ? idx : undefined}
                        onPointerDown={(e)=>onGridPointerDown(e, globalCellIndex)}
                        style={{position:'relative', borderStyle: showGrid?'dashed':'none', overflow:'hidden', touchAction:'none', userSelect:'none'}}>
                     {editMode && selectedIds.includes(idx) ? (
@@ -1034,7 +1051,7 @@ export default function BarcodeStudio() {
                 const defY = row*(cellH+gapMM) + (cellH - drawH) / 2
                 const pos = posOverrides[idx] || { x: defX, y: defY }
                 return (
-                  <div key={i} className={"free-node" + ((editAll || selectedIds.includes(idx))?" cell-highlight":"")} data-label-idx={idx} style={{position:'absolute', zIndex:2, left: pos.x+'mm', top: pos.y+'mm', width: drawW+'mm', height: drawH+'mm', padding:'3mm', boxSizing:'border-box', touchAction:'none', userSelect:'none'}}
+                  <div key={i} className={"free-node" + ((editAll || selectedIds.includes(idx))?" cell-highlight":"") + ((idx === matchedHighlightIdx) ? " cell-match-highlight" : "")} data-label-idx={idx} style={{position:'absolute', zIndex:2, left: pos.x+'mm', top: pos.y+'mm', width: drawW+'mm', height: drawH+'mm', padding:'3mm', boxSizing:'border-box', touchAction:'none', userSelect:'none'}}
                        onPointerDown={(e)=>onLabelPointerDown(e, idx, p)}>
                     {editMode && selectedIds.includes(idx) ? (
                       <button
@@ -1390,6 +1407,13 @@ export default function BarcodeStudio() {
     return () => window.removeEventListener('wheel', onNativeWheel, { capture: true })
   }, [])
 
+  useEffect(() => {
+    if (tab !== 'labels' || matchedHighlightIdx == null) return
+    const clear = () => setMatchedHighlightIdx(null)
+    window.addEventListener('pointerdown', clear, { capture: true, once: true })
+    return () => window.removeEventListener('pointerdown', clear, { capture: true })
+  }, [tab, matchedHighlightIdx])
+
   function resetSelectionChanges(){
     setSizeOverrides({})
     setGlobalMulX(1)
@@ -1501,11 +1525,6 @@ export default function BarcodeStudio() {
           batchBcid={batchBcid}
           setBatchBcid={setBatchBcid}
           addAllFromBatch={addAllFromBatch}
-          setLabels={setLabels}
-          setTab={setTab}
-          scale={scale}
-          height={height}
-          notify={notify}
         />
       )}
 

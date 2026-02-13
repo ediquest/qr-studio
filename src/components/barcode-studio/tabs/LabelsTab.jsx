@@ -78,8 +78,7 @@ export default function LabelsTab({
       const atLeft = vp.scrollLeft <= 0
       const atRight = vp.scrollLeft >= maxLeft - 1
       if ((ev.deltaY < 0 && atTop) || (ev.deltaY > 0 && atBottom) || (ev.deltaX < 0 && atLeft) || (ev.deltaX > 0 && atRight)) {
-        ev.preventDefault()
-        ev.stopPropagation()
+        return
       }
     }
     vp.addEventListener('wheel', onWheelNative, { passive: false })
