@@ -70,6 +70,13 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
   const [height, setHeight] = useState(50)
   const [includeText, setIncludeText] = useState(true)
   const [hrtFont, setHrtFont] = useState('OCR-B')
+  const [hrtSize, setHrtSize] = useState(10)
+  const [hrtGap, setHrtGap] = useState(0)
+  const [customCaptionEnabled, setCustomCaptionEnabled] = useState(false)
+  const [customCaptionText, setCustomCaptionText] = useState('')
+  const [customCaptionFont, setCustomCaptionFont] = useState('Arial')
+  const [customCaptionSize, setCustomCaptionSize] = useState(12)
+  const [customCaptionGap, setCustomCaptionGap] = useState(0)
   const [rotate, setRotate] = useState(0)
   const [error, setError] = useState('')
   const [genPreviewUrl, setGenPreviewUrl] = useState('')
@@ -84,9 +91,19 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
         setText(typeof saved.text === 'string' ? saved.text : '')
         setScale(+saved.scale || 4)
         setHeight(+saved.height || 50)
-        setIncludeText(!!saved.includeText)
+        // Keep HRT enabled by default when opening generator.
+        setIncludeText(true)
         setRotate(+saved.rotate || 0)
         if (saved.hrtFont) setHrtFont(normalizeHrtFont(saved.hrtFont))
+        setHrtSize(Number.isFinite(+saved.hrtSize) ? +saved.hrtSize : 10)
+        setHrtGap(Number.isFinite(+saved.hrtGap) ? Math.max(-20, Math.min(80, +saved.hrtGap)) : 0)
+        const savedCustomText = typeof saved.customCaptionText === 'string' ? saved.customCaptionText : ''
+        setCustomCaptionText(savedCustomText)
+        // Start with native HRT by default; custom caption is opt-in per session.
+        setCustomCaptionEnabled(false)
+        setCustomCaptionFont(typeof saved.customCaptionFont === 'string' && saved.customCaptionFont ? saved.customCaptionFont : 'Arial')
+        setCustomCaptionSize(Number.isFinite(+saved.customCaptionSize) ? Math.max(8, Math.min(72, +saved.customCaptionSize)) : 12)
+        setCustomCaptionGap(Number.isFinite(+saved.customCaptionGap) ? Math.max(-20, Math.min(80, +saved.customCaptionGap)) : 0)
       }
       const u = localStorage.getItem('rbs_gen_url')
       if (u) setGenPreviewUrl(u)
@@ -101,11 +118,14 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem('rbs_gen', JSON.stringify({ bcid, text, scale, height, includeText, rotate, hrtFont }))
+      localStorage.setItem('rbs_gen', JSON.stringify({
+        bcid, text, scale, height, includeText, rotate, hrtFont, hrtSize, hrtGap,
+        customCaptionEnabled, customCaptionText, customCaptionFont, customCaptionSize, customCaptionGap,
+      }))
     } catch (_) {
       // ignore storage errors
     }
-  }, [bcid, text, scale, height, includeText, rotate, hrtFont])
+  }, [bcid, text, scale, height, includeText, rotate, hrtFont, hrtSize, hrtGap, customCaptionEnabled, customCaptionText, customCaptionFont, customCaptionSize, customCaptionGap])
 
   useEffect(() => {
     try {
@@ -133,11 +153,7 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
       } else {
         opts.scaleX = base
         opts.height = Number(height) || 50
-        if (includeText) {
-          opts.includetext = true
-          opts.textxalign = 'center'
-          opts.textfont = hrtFont
-        }
+        // Generator preview renders caption as HTML overlay for consistent behavior.
       }
       try {
         const svg = toSvg(opts)
@@ -154,7 +170,7 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
     } catch (e) {
       setError(cleanBwipError(e, t))
     }
-  }, [bcid, text, scale, height, includeText, hrtFont, rotate, toSvg, makeBitmap, t])
+  }, [bcid, text, scale, height, includeText, hrtFont, hrtSize, hrtGap, customCaptionEnabled, rotate, toSvg, makeBitmap, t])
 
   const gs1Report = useMemo(() => {
     if (bcid !== 'gs1-128' && bcid !== 'qrcode' && bcid !== 'datamatrix') return null
@@ -175,6 +191,20 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
     setIncludeText,
     hrtFont,
     setHrtFont,
+    hrtSize,
+    setHrtSize,
+    hrtGap,
+    setHrtGap,
+    customCaptionEnabled,
+    setCustomCaptionEnabled,
+    customCaptionText,
+    setCustomCaptionText,
+    customCaptionFont,
+    setCustomCaptionFont,
+    customCaptionSize,
+    setCustomCaptionSize,
+    customCaptionGap,
+    setCustomCaptionGap,
     rotate,
     setRotate,
     error,

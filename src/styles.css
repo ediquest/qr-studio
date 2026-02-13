@@ -42,11 +42,48 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 .tabs{display:flex;gap:8px;border-bottom:1px solid var(--border);margin-bottom:12px}
 .tab{padding:8px 12px;border-radius:10px 10px 0 0;border:1px solid transparent;cursor:pointer}
 .tab.active{background:#fff;border-color:var(--border);border-bottom-color:#fff}
-@media print{body{background:#fff}.no-print{display:none!important}.print-sheet{page-break-after:always}}
+@media print{
+  body{background:#fff}
+  .no-print{display:none!important}
+  .print-sheet{page-break-after:always; break-after:page}
+  .print-sheet:last-child{page-break-after:auto; break-after:auto}
+  .print-page{margin:0 !important}
+}
 .print-page{margin:0 auto;background:#fff}
 .label-grid{display:grid;width:100%;height:100%}
 .label-cell{border:1px dashed #cbd5e1;border-radius:2mm;display:flex;align-items:center;justify-content:center;padding:3mm;text-align:center}
 .label-cell img{max-width:100%;max-height:100%}
+.label-delete-btn{
+  position:absolute;
+  top:6px;
+  right:6px;
+  width:22px;
+  height:22px;
+  border-radius:999px;
+  border:1px solid #cbd5e1;
+  background:#ffffff;
+  color:#334155;
+  font-size:14px;
+  line-height:1;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  z-index:5;
+  transition:transform .12s ease, background-color .12s ease, border-color .12s ease;
+}
+.label-delete-btn-large{
+  top:5px;
+  right:5px;
+  width:32px;
+  height:32px;
+  color:#0f172a;
+  font-size:20px;
+  font-weight:500;
+}
+.label-delete-btn:hover{
+  background:#fee2e2;
+  border-color:#fca5a5;
+}
 .cell-highlight{ outline:3px solid #60a5fa; outline-offset:-3px }
 .small{font-size:12px;color:var(--muted)}
 .toast{position:fixed;right:16px;bottom:16px;background:#0ea5e9;color:#fff;padding:10px 12px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.15)}
@@ -63,7 +100,12 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 .sheet-viewport{ position:relative }
 .sheet-viewport::-webkit-scrollbar{ width:10px; height:10px }
 @media print{ .sheet-viewport{ overflow:visible !important; max-height:none !important; border:0; padding:0; background:#fff } .sheet-viewport::-webkit-scrollbar{ display:none } }
-.labels-settings-compact{ align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap }
+@media print{
+  .print-content{ transform:none !important; transform-origin:0 0 !important; }
+  .label-cell{ border:0 !important; border-radius:0 !important; }
+  .slot-empty{ display:none !important; }
+}
+.labels-settings-compact{ align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap }
 
 .selection-marquee{
   position:absolute;
@@ -76,10 +118,10 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 
 .selection-drawer{
   position:fixed;
-  left:16px;
-  right:16px;
+  left:50%;
+  width:min(1520px, calc(100vw - 12px));
+  transform:translate(-50%, calc(100% + 20px));
   bottom:16px;
-  transform:translateY(calc(100% + 20px));
   opacity:0;
   transition:transform .24s ease, opacity .24s ease;
   z-index:50;
@@ -92,7 +134,7 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
   z-index:45;
 }
 .selection-drawer.open{
-  transform:translateY(0);
+  transform:translate(-50%, 0);
   opacity:1;
   pointer-events:auto;
 }
@@ -102,10 +144,56 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
   border-radius:14px;
   padding:12px;
   box-shadow:0 14px 34px rgba(15,23,42,.18);
+  display:grid;
+  grid-template-columns:1fr;
+  gap:10px;
+}
+.selection-row{
   display:flex;
-  gap:12px;
+  gap:8px;
   align-items:center;
-  flex-wrap:wrap;
+  justify-content:center;
+}
+.selection-row-top{
+  padding-bottom:2px;
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-width:thin;
+  -webkit-overflow-scrolling:touch;
+}
+.selection-row-bottom{
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-width:thin;
+  -webkit-overflow-scrolling:touch;
+}
+.selection-content-input{
+  width:240px;
+  min-width:220px;
+  max-width:260px;
+  flex:0 0 240px;
+}
+.selection-separator{
+  width:1px;
+  height:24px;
+  background:var(--border);
+  margin:0 1px;
+}
+.selection-row .hstack{
+  gap:6px;
+  flex-wrap:nowrap;
+}
+.selection-row label{
+  white-space:nowrap;
+}
+.selection-row .small{
+  white-space:nowrap;
+}
+.selection-row .button{
+  white-space:nowrap;
+  line-height:1.15;
 }
 
 /* Footer */

@@ -11,7 +11,6 @@ import BatchTab from './barcode-studio/tabs/BatchTab.jsx'
 import LabelsTab from './barcode-studio/tabs/LabelsTab.jsx'
 
 const POPULAR_CODE_IDS = ['qrcode','code128','ean13','ean8','itf14','gs1-128','datamatrix','azteccode','pdf417'];
-const ONE_D_HEIGHT_RATIO = 0.65  // portion of cellH used for 1D in Free layout
 
 export default function BarcodeStudio() {
   const rootRef = useRef(null)
@@ -21,6 +20,7 @@ export default function BarcodeStudio() {
   const [pdfQuality, setPdfQuality] = useState('lowest')
   const [selectedIds, setSelectedIds] = useState([])
   const [marqueeRect, setMarqueeRect] = useState(null)
+  const [previewRatios, setPreviewRatios] = useState({})
   const previewCacheRef = useRef(new Map())
   const { t, lang } = useI18n()
 
@@ -38,6 +38,20 @@ export default function BarcodeStudio() {
     setIncludeText,
     hrtFont,
     setHrtFont,
+    hrtSize,
+    setHrtSize,
+    hrtGap,
+    setHrtGap,
+    customCaptionEnabled,
+    setCustomCaptionEnabled,
+    customCaptionText,
+    setCustomCaptionText,
+    customCaptionFont,
+    setCustomCaptionFont,
+    customCaptionSize,
+    setCustomCaptionSize,
+    customCaptionGap,
+    setCustomCaptionGap,
     rotate,
     setRotate,
     error,
@@ -62,6 +76,12 @@ export default function BarcodeStudio() {
     setSkip,
     showGrid,
     setShowGrid,
+    showCutLines,
+    setShowCutLines,
+    cutLineWeight,
+    setCutLineWeight,
+    cutLineStyle,
+    setCutLineStyle,
     editMode,
     setEditMode,
     editAll,
@@ -109,12 +129,153 @@ export default function BarcodeStudio() {
   } = useLabelsLayoutState({ presets: PRESETS })
 
   function notify(msg){ setToast(msg); setTimeout(()=>setToast(''), 1400) }
-  function addCurrentToLabels(){ setLabels(prev => [...prev, { bcid, text, scale, height, includeText }]); notify('Dodano 1 etykiete') }
-  function addAllFromBatch(rows){ const toAdd = rows.map(r => ({ bcid: batchBcid, text: r, scale, height, includeText })); if (!toAdd.length) return; setLabels(prev => [...prev, ...toAdd]); setTab('labels'); notify(`Dodano ${toAdd.length} etykiet`) }
+  function resolvedCustomCaptionText(item){
+    if (!item?.customCaptionEnabled) return ''
+    const raw = String(item?.customCaptionText || '').trim()
+    if (raw) return raw
+    return String(item?.text || '').trim()
+  }
+  function hasCustomCaption(item){
+    return resolvedCustomCaptionText(item).length > 0
+  }
+  function addCurrentToLabels(){
+    const customOn = !!customCaptionEnabled
+    const hrtOn = customOn ? false : !!includeText
+    setLabels(prev => [...prev, { bcid, text, scale, height, includeText: hrtOn, hrtSize, hrtGap, customCaptionEnabled: customOn, customCaptionText, customCaptionFont, customCaptionSize, customCaptionGap }])
+    notify('Dodano 1 etykiete')
+  }
+  function addAllFromBatch(rows){
+    const toAdd = rows.map(r => ({
+      bcid: batchBcid,
+      text: r,
+      scale,
+      height,
+      includeText: true,
+      hrtSize,
+      hrtGap,
+      customCaptionEnabled: false,
+      customCaptionText: '',
+      customCaptionFont,
+      customCaptionSize,
+      customCaptionGap: 0,
+    }))
+    if (!toAdd.length) return
+    setLabels(prev => [...prev, ...toAdd]); setTab('labels'); notify(`Dodano ${toAdd.length} etykiet`)
+  }
   function clearLabels(){ setLabels([]); setSizeOverrides({}); setPosOverrides({}); setSelectedIds([]); setSelectedIdx(null); notify('Wyczyszczono arkusze') }
 
   function effMul(idx, axis){ const o = sizeOverrides[idx] || {x:1,y:1}; if (editAll) return axis==='x'?globalMulX:globalMulY; return axis==='x'?o.x:o.y }
   function hasTextEnabled(item){ return item?.includeText !== false }
+  function remapIndexedObject(prev, removedIdx){
+    const out = {}
+    Object.entries(prev || {}).forEach(([k, v]) => {
+      const i = parseInt(k, 10)
+      if (!(i >= 0)) return
+      if (i < removedIdx) out[i] = v
+      else if (i > removedIdx) out[i - 1] = v
+    })
+    return out
+  }
+  function removeLabelAt(idx){
+    if (!(idx >= 0 && idx < labels.length)) return
+    setLabels((prev) => prev.filter((_, i) => i !== idx))
+    setSizeOverrides((prev) => remapIndexedObject(prev, idx))
+    setPosOverrides((prev) => remapIndexedObject(prev, idx))
+    setPreviewRatios((prev) => remapIndexedObject(prev, idx))
+    setSelectedIds((prev) => prev.filter((i) => i !== idx).map((i) => (i > idx ? i - 1 : i)).sort((a,b)=>a-b))
+    notify(t('labels.deletedOne'))
+  }
+  function cellCoordsForLabel(idx){
+    const global = skip + idx
+    const page = Math.floor(global / perPage)
+    const local = ((global % perPage) + perPage) % perPage
+    const col = local % cols
+    const row = Math.floor(local / cols)
+    return { page, local, col, row }
+  }
+  function rememberPreviewRatio(idx, ev){
+    const img = ev?.currentTarget
+    const w = img?.naturalWidth || img?.width || 0
+    const h = img?.naturalHeight || img?.height || 0
+    if (!(idx >= 0) || !(w > 0) || !(h > 0)) return
+    const ratio = w / h
+    setPreviewRatios((prev) => {
+      const cur = prev[idx]
+      if (cur && Math.abs(cur - ratio) < 0.01) return prev
+      return { ...prev, [idx]: ratio }
+    })
+  }
+  function oneDWidthMM(idx, h){
+    const { cellW } = metrics()
+    const ratio = previewRatios[idx]
+    const mulX = effMul(idx, 'x')
+    const safeRatio = ratio > 0 ? ratio : 1
+    const w = h * safeRatio * mulX
+    return Math.max(2, Math.min(cellW, w))
+  }
+  function captionCfg(item){
+    const enabled = hasCustomCaption(item)
+    const text = resolvedCustomCaptionText(item)
+    const size = enabled
+      ? Math.max(8, Math.min(72, Number(item?.customCaptionSize ?? customCaptionSize) || 12))
+      : Math.max(6, Math.min(24, Number(item?.hrtSize ?? hrtSize) || 10))
+    const gap = enabled
+      ? Math.max(-20, Math.min(80, Number(item?.customCaptionGap ?? customCaptionGap) || 0))
+      : Math.max(-20, Math.min(80, Number(item?.hrtGap ?? hrtGap) || 0))
+    const font = item?.customCaptionFont || customCaptionFont || 'Arial'
+    return { enabled, text, size, gap, font }
+  }
+  function captionReservePx(cfg){
+    if (!cfg?.enabled || !cfg?.text) return 0
+    return Math.max(10, cfg.size * 1.4 + Math.max(0, cfg.gap))
+  }
+  function captionFontCss(font){
+    const f = String(font || '').toLowerCase()
+    if (f.includes('courier') || f.includes('mono')) return '"Courier New", Courier, monospace'
+    if (f.includes('times')) return '"Times New Roman", Times, serif'
+    if (f.includes('georgia')) return 'Georgia, serif'
+    if (f.includes('verdana')) return 'Verdana, sans-serif'
+    return 'Arial, Helvetica, sans-serif'
+  }
+  function pdfFontName(font){
+    const f = String(font || '').toLowerCase()
+    if (f.includes('courier') || f.includes('mono')) return 'courier'
+    if (f.includes('times') || f.includes('georgia')) return 'times'
+    return 'helvetica'
+  }
+  function makeCaptionBitmap(text, fontCss, maxWidthPx, heightPx){
+    const maxW = Math.max(48, Math.round(maxWidthPx))
+    const baseH = Math.max(16, Math.round(heightPx))
+    const probe = document.createElement('canvas')
+    const pctx = probe.getContext('2d')
+    if (!pctx) return null
+
+    let fontPx = Math.max(8, Math.floor(baseH * 0.72))
+    for (let i = 0; i < 14; i++) {
+      pctx.font = `${fontPx}px ${fontCss}`
+      const mw = pctx.measureText(text).width
+      if (mw <= maxW - 8 || fontPx <= 8) break
+      fontPx -= 1
+    }
+    pctx.font = `${fontPx}px ${fontCss}`
+    const measured = pctx.measureText(text).width
+    const textW = Math.max(24, Math.min(maxW, Math.ceil(measured) + 10))
+
+    const ss = 3
+    const canvas = document.createElement('canvas')
+    canvas.width = textW * ss
+    canvas.height = baseH * ss
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.scale(ss, ss)
+    ctx.clearRect(0, 0, textW, baseH)
+    ctx.fillStyle = '#111827'
+    ctx.font = `${fontPx}px ${fontCss}`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, textW / 2, baseH / 2)
+    return { dataUrl: canvas.toDataURL('image/png'), textW, textH: baseH }
+  }
   function prunePreviewCache() {
     const cache = previewCacheRef.current
     if (cache.size <= 800) return
@@ -130,10 +291,12 @@ export default function BarcodeStudio() {
     const is2d = TWO_D_SET.has(item.bcid)
     const baseScale = (Number(item.scale)||3) * (Number(pageScale)||1)
     const mulY = editAll ? globalMulY : ((sizeOverrides[idx]?.y)||1)
-    const textOn = hasTextEnabled(item) ? 1 : 0
+    const nativeTextOn = (hasTextEnabled(item) && !hasCustomCaption(item)) ? 1 : 0
+    const itemHrtSize = Math.max(6, Math.min(24, Number(item.hrtSize ?? hrtSize) || 10))
+    const itemHrtGap = Math.max(-20, Math.min(80, Number(item.hrtGap ?? hrtGap) || 0))
     const key = is2d
       ? `2d|${item.bcid}|${item.text}|${pageRotate||0}|${baseScale}`
-      : `1d|${item.bcid}|${item.text}|${pageRotate||0}|${baseScale}|${Math.round(((Number(item.height)||50)*(Number(pageScale)||1)*mulY))}|${textOn}|${hrtFont}`
+      : `1d|${item.bcid}|${item.text}|${pageRotate||0}|${baseScale}|${Math.round(((Number(item.height)||50)*(Number(pageScale)||1)*mulY))}|${nativeTextOn}|${hrtFont}|${itemHrtSize}|${itemHrtGap}`
     const cache = previewCacheRef.current
     if (cache.has(key)) return cache.get(key)
 
@@ -147,7 +310,13 @@ export default function BarcodeStudio() {
         // Keep base width in preview; horizontal resize is applied via CSS scaleX.
         opts.scaleX = baseScale
         opts.height = Math.round(((Number(item.height)||50)*(Number(pageScale)||1)*mulY))
-        if (hasTextEnabled(item)) { opts.includetext = true; opts.textxalign = 'center'; opts.textfont = hrtFont }
+        if (hasTextEnabled(item) && !hasCustomCaption(item)) {
+          opts.includetext = true
+          opts.textxalign = 'center'
+          opts.textfont = hrtFont
+          opts.textsize = itemHrtSize
+          opts.textyoffset = itemHrtGap
+        }
       }
       const svg = toSvg(opts)
       img = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg)
@@ -166,7 +335,9 @@ export default function BarcodeStudio() {
         rotate: pageRotate || 0,
         scaleX: baseScale,
         height: Math.round(((Number(item.height)||50)*(Number(pageScale)||1)*mulY)),
-        ...(hasTextEnabled(item) ? { includetext:true, textxalign:'center', textfont:hrtFont } : {}),
+        ...(hasTextEnabled(item) && !hasCustomCaption(item)
+          ? { includetext:true, textxalign:'center', textfont:hrtFont, textsize:itemHrtSize, textyoffset:itemHrtGap }
+          : {}),
       })
     }
     cache.set(key, img)
@@ -177,6 +348,23 @@ export default function BarcodeStudio() {
   useEffect(() => {
     setSelectedIds((prev) => prev.filter((i) => i >= 0 && i < labels.length))
   }, [labels.length])
+
+  useEffect(() => {
+    setLabels((prev) => {
+      let changed = false
+      const next = prev.map((item) => {
+        const include = item?.includeText !== false
+        const custom = !!item?.customCaptionEnabled
+        // Legacy cleanup: if both flags are on, keep native HRT as default.
+        if (include && custom) {
+          changed = true
+          return { ...item, customCaptionEnabled: false }
+        }
+        return item
+      })
+      return changed ? next : prev
+    })
+  }, [labels, setLabels])
 
   useEffect(() => {
     if (!editMode) { setSelectedIds([]); setSelectedIdx(null) }
@@ -312,8 +500,10 @@ export default function BarcodeStudio() {
 
     const snap = {}
     for (let i=0;i<labels.length;i++){
-      const col = (i % cols), row = Math.floor(i / cols)
-      const defX = col*(cellW+gapMM), defY = row*(cellH+gapMM)
+      const { col, row } = cellCoordsForLabel(i)
+      const { w, h } = nodeSizeMM(i)
+      const defX = col*(cellW+gapMM) + (cellW - w) / 2
+      const defY = row*(cellH+gapMM) + (cellH - h) / 2
       const po = posOverrides[i] || { x:defX, y:defY }
       snap[i] = { x: po.x, y: po.y }
     }
@@ -374,16 +564,20 @@ export default function BarcodeStudio() {
 
   
   function defaultPosForIndex(i){
-    const { innerW, innerH, cellW, cellH } = metrics()
-    const col = (i % cols), row = Math.floor(i / cols)
-    return { x: col*(cellW+gapMM), y: row*(cellH+gapMM) }
+    const { cellW, cellH } = metrics()
+    const { col, row } = cellCoordsForLabel(i)
+    const { w, h } = nodeSizeMM(i)
+    return {
+      x: col*(cellW+gapMM) + (cellW - w) / 2,
+      y: row*(cellH+gapMM) + (cellH - h) / 2,
+    }
   }
   function nodeSizeMM(i){
     const { cellW, cellH } = metrics()
     const mulX = effMul(i,'x'); const mulY = effMul(i,'y')
     const is2d = TWO_D_SET.has(labels[i]?.bcid||'')
-    const h = is2d ? (cellH*mulY) : (cellH*mulY*ONE_D_HEIGHT_RATIO)
-    return { w: is2d ? (cellW*mulX) : cellW, h }
+    const h = cellH * mulY
+    return { w: is2d ? (cellW*mulX) : oneDWidthMM(i, h), h }
   }
   function clampPosToCell(i, pos){
     const { cellW, cellH } = metrics()
@@ -404,7 +598,72 @@ export default function BarcodeStudio() {
     return { x: Math.round(pos.x / snapMM) * snapMM, y: Math.round(pos.y / snapMM) * snapMM }
   }
 
-  
+  function cutLineCenters(size, gap, count){
+    if (count <= 1) return []
+    const out = []
+    for (let k = 1; k < count; k++) {
+      const v = k * (size + gap) - gap / 2
+      out.push(Number(v.toFixed(3)))
+    }
+    return out
+  }
+
+  function renderCutLinesOverlay(innerW, innerH, cellW, cellH){
+    if (!showCutLines) return null
+    const xs = cutLineCenters(cellW, gapMM, cols)
+    const ys = cutLineCenters(cellH, gapMM, rows)
+    const lineWidthMM = cutLineWeight === 'thin' ? 0.12 : (cutLineWeight === 'thick' ? 0.28 : 0.2)
+    const dash = cutLineStyle === 'dashed' ? '1.2 0.9' : undefined
+    return (
+      <svg
+        style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:0 }}
+        viewBox={`0 0 ${innerW} ${innerH}`}
+        preserveAspectRatio="none"
+      >
+        {xs.map((x) => (
+          <line
+            key={`vx-${x}`}
+            x1={x}
+            y1={0}
+            x2={x}
+            y2={innerH}
+            stroke="#94a3b8"
+            strokeWidth={lineWidthMM}
+            strokeDasharray={dash}
+            shapeRendering="geometricPrecision"
+          />
+        ))}
+        {ys.map((y) => (
+          <line
+            key={`hy-${y}`}
+            x1={0}
+            y1={y}
+            x2={innerW}
+            y2={y}
+            stroke="#94a3b8"
+            strokeWidth={lineWidthMM}
+            strokeDasharray={dash}
+            shapeRendering="geometricPrecision"
+          />
+        ))}
+      </svg>
+    )
+  }
+
+  function drawPdfCutLines(pdf, innerW, innerH, cellW, cellH){
+    if (!showCutLines) return
+    const xs = cutLineCenters(cellW, gapMM, cols)
+    const ys = cutLineCenters(cellH, gapMM, rows)
+    const lineWidthMM = cutLineWeight === 'thin' ? 0.08 : (cutLineWeight === 'thick' ? 0.18 : 0.12)
+    pdf.setDrawColor(148, 163, 184)
+    pdf.setLineWidth(lineWidthMM)
+    if (cutLineStyle === 'dashed') pdf.setLineDashPattern([1.2, 0.9], 0)
+    else pdf.setLineDashPattern([], 0)
+    xs.forEach((x) => pdf.line(padMM + x, padMM, padMM + x, padMM + innerH))
+    ys.forEach((y) => pdf.line(padMM, padMM + y, padMM + innerW, padMM + y))
+    pdf.setLineDashPattern([], 0)
+  }
+
   function setZoomCentered(nextZoom){
     const vp = viewportRef.current, ct = contentRef.current
     if (!vp || !ct){ setSheetZoom(nextZoom); return }
@@ -472,12 +731,22 @@ export default function BarcodeStudio() {
 
   function renderLabelPages(){
     const out = []; const perPageLocal = perPage; const { innerW, innerH, cellW, cellH } = metrics()
-    const useFreeLayout = freeLayout || Object.keys(posOverrides || {}).length > 0
+    const largeDeleteBtn = cols === 1 && rows === 1
+    const deleteBtnStyle = largeDeleteBtn
+      ? { transform: `scale(${Math.min(2.6, Math.max(1, 1 / Math.max(0.5, sheetZoom || 1)))})`, transformOrigin: 'top right' }
+      : undefined
+    const useFreeLayout = freeLayout
     for (let p=0; p<pages; p++) {
+      const cutOverlay = renderCutLinesOverlay(innerW, innerH, cellW, cellH)
       if (!useFreeLayout){
         out.push(
-          <div key={p} data-page-idx={p} className="print-page print-sheet page-outline" style={{ width: pageW+'mm', height: pageH+'mm', padding: padMM+'mm' }}>
-            <div className="label-grid" style={{ gridTemplateColumns:`repeat(${cols},1fr)`, gridTemplateRows:`repeat(${rows},1fr)`, gap: gapMM+'mm' }}>
+          <div key={p} data-page-idx={p} className="print-page print-sheet page-outline" style={{ width: pageW+'mm', height: pageH+'mm', padding: padMM+'mm', position:'relative' }}>
+            {cutOverlay ? (
+              <div style={{ position:'absolute', left:padMM+'mm', top:padMM+'mm', width:innerW+'mm', height:innerH+'mm' }}>
+                {cutOverlay}
+              </div>
+            ) : null}
+            <div className="label-grid" style={{ position:'relative', zIndex:1, gridTemplateColumns:`repeat(${cols},1fr)`, gridTemplateRows:`repeat(${rows},1fr)`, gap: gapMM+'mm' }}>
               {Array.from({length: perPageLocal}).map((_,i)=>{
                 const g=p*perPageLocal+i; const idx=g - skip; const item = idx>=0 && idx<labels.length ? labels[idx] : null
                 let imgSrc=null
@@ -494,16 +763,36 @@ export default function BarcodeStudio() {
                   <div key={i} className={"label-cell "+((editAll || selectedIds.includes(idx))?"cell-highlight":"")} data-cell-index={globalCellIndex} data-label-idx={item ? idx : undefined}
                        onPointerDown={(e)=>onGridPointerDown(e, globalCellIndex)}
                        style={{position:'relative', borderStyle: showGrid?'dashed':'none', overflow:'hidden', touchAction:'none', userSelect:'none'}}>
+                    {editMode && selectedIds.includes(idx) ? (
+                      <button
+                        type="button"
+                        className={"label-delete-btn no-print" + (largeDeleteBtn ? " label-delete-btn-large" : "")}
+                        aria-label={t('labels.deleteLabel')}
+                        title={t('labels.deleteLabel')}
+                        style={deleteBtnStyle}
+                        onPointerDown={(e)=>{ e.preventDefault(); e.stopPropagation() }}
+                        onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); removeLabelAt(idx) }}
+                      >
+                        x
+                      </button>
+                    ) : null}
                     {(() => {
                       if (imgSrc && imgSrc!=='ERROR') {
+                        const c = captionCfg(item)
+                        const capPx = captionReservePx(c)
                         const wrapW = is2d ? ((mulX*100)+'%') : '100%'; const wrapH = (mulY*100)+'%';
                         return (
                           <div className="barcode-wrap" style={{position:'relative', width:wrapW, height:wrapH, display:'flex', alignItems:'center', justifyContent:'center'}}>
-                            <img src={imgSrc} alt="barcode" draggable={false} style={is2d ? {maxWidth:'100%',maxHeight:'100%', pointerEvents:'none'} : {maxHeight:'100%',maxWidth:'none',width:'auto', transform:`scaleX(${mulX})`, transformOrigin:'center center', pointerEvents:'none'}} />
+                            <img src={imgSrc} alt="barcode" draggable={false} style={is2d ? {maxWidth:'100%',maxHeight:`calc(100% - ${capPx}px)`, pointerEvents:'none'} : {maxHeight:`calc(100% - ${capPx}px)`,maxWidth:'none',width:'auto', transform:`scaleX(${mulX})`, transformOrigin:'center center', pointerEvents:'none'}} />
+                            {c.enabled && c.text ? (
+                              <div style={{ position:'absolute', left:'50%', bottom:0, transform:'translateX(-50%)', fontSize:c.size+'px', lineHeight:1.1, fontFamily:captionFontCss(c.font), color:'#111827', whiteSpace:'nowrap', pointerEvents:'none' }}>
+                                {c.text}
+                              </div>
+                            ) : null}
                           </div>
                         )
                       }
-                      return (imgSrc==='ERROR' ? <span className="small" style={{color:'#b91c1c'}}>blad</span> : <span className="small">pusta</span>)
+                      return (imgSrc==='ERROR' ? <span className="small" style={{color:'#b91c1c'}}>blad</span> : (showGrid ? <span className="small slot-empty">pusta</span> : null))
                     })()}
                   </div>
                 )
@@ -515,28 +804,84 @@ export default function BarcodeStudio() {
         out.push(
           <div key={p} data-page-idx={p} className="print-page print-sheet page-outline" style={{ width: pageW+'mm', height: pageH+'mm', padding: padMM+'mm', position:'relative' }}>
             <div data-inner="1" style={{position:'absolute', left:padMM+'mm', top:padMM+'mm', width: innerW+'mm', height: innerH+'mm', border: showGrid?'1px dashed #cbd5e1':'none'}}>
+              {cutOverlay}
+              {showGrid ? (
+              <div className="no-print" style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:1 }}>
+                {Array.from({length: perPageLocal}).map((_,i)=>{
+                  const g=p*perPageLocal+i
+                  const idx=g - skip
+                  const item = idx>=0 && idx<labels.length ? labels[idx] : null
+                  const col = i % cols
+                  const row = Math.floor(i / cols)
+                  return (
+                    <div
+                      key={`bg-${i}`}
+                      className="label-cell"
+                      style={{
+                        position:'absolute',
+                        left:(col*(cellW+gapMM))+'mm',
+                        top:(row*(cellH+gapMM))+'mm',
+                        width:cellW+'mm',
+                        height:cellH+'mm',
+                        borderStyle: showGrid?'dashed':'none',
+                      }}
+                    >
+                      {!item ? <span className="small slot-empty">pusta</span> : null}
+                    </div>
+                  )
+                })}
+              </div>
+              ) : null}
               {Array.from({length: perPageLocal}).map((_,i)=>{
                 const g=p*perPageLocal+i; const idx=g - skip; const item = idx>=0 && idx<labels.length ? labels[idx] : null
                 if (!item) return <div key={i}></div>
                 const col = i % cols; const row = Math.floor(i / cols)
                 const { cellW, cellH } = metrics()
-                const defX = col*(cellW+gapMM); const defY = row*(cellH+gapMM)
-                const pos = posOverrides[idx] || { x: defX, y: defY }
                 let imgSrc=null
                 try {
                   imgSrc = getPreviewImage(item, idx)
                 } catch(e){ console.error('Label render error', e); imgSrc='ERROR'; lastError=cleanBwipError(e) }
                 const mulX = editAll?globalMulX:((sizeOverrides[idx]?.x)||1); const mulY = editAll?globalMulY:((sizeOverrides[idx]?.y)||1)
                 const is2d = TWO_D_SET.has(item.bcid)
-                const drawW = is2d ? (cellW*mulX) : cellW; const drawH = is2d ? (cellH*mulY) : (cellH*mulY*ONE_D_HEIGHT_RATIO)
+                const drawH = cellH * mulY
+                const drawW = is2d ? (cellW*mulX) : oneDWidthMM(idx, drawH)
+                const defX = col*(cellW+gapMM) + (cellW - drawW) / 2
+                const defY = row*(cellH+gapMM) + (cellH - drawH) / 2
+                const pos = posOverrides[idx] || { x: defX, y: defY }
                 return (
-                  <div key={i} className={"free-node" + ((editAll || selectedIds.includes(idx))?" cell-highlight":"")} data-label-idx={idx} style={{position:'absolute', left: pos.x+'mm', top: pos.y+'mm', width: drawW+'mm', height: drawH+'mm', touchAction:'none', userSelect:'none'}}
+                  <div key={i} className={"free-node" + ((editAll || selectedIds.includes(idx))?" cell-highlight":"")} data-label-idx={idx} style={{position:'absolute', zIndex:2, left: pos.x+'mm', top: pos.y+'mm', width: drawW+'mm', height: drawH+'mm', padding:'3mm', boxSizing:'border-box', touchAction:'none', userSelect:'none'}}
                        onPointerDown={(e)=>onLabelPointerDown(e, idx, p)}>
+                    {editMode && selectedIds.includes(idx) ? (
+                      <button
+                        type="button"
+                        className={"label-delete-btn no-print" + (largeDeleteBtn ? " label-delete-btn-large" : "")}
+                        aria-label={t('labels.deleteLabel')}
+                        title={t('labels.deleteLabel')}
+                        style={deleteBtnStyle}
+                        onPointerDown={(e)=>{ e.preventDefault(); e.stopPropagation() }}
+                        onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); removeLabelAt(idx) }}
+                      >
+                        x
+                      </button>
+                    ) : null}
                     {imgSrc && imgSrc!=='ERROR' ? (
                       <div className="barcode-wrap" style={{position:'relative', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center'}}>
-                        <img src={imgSrc} alt="barcode" draggable={false} style={is2d ? {maxWidth:'100%',maxHeight:'100%', pointerEvents:'none'} : {maxHeight:'100%',maxWidth:'none',width:'auto', transform:`scaleX(${mulX})`, transformOrigin:'center center', pointerEvents:'none'}} />
+                        {(() => {
+                          const c = captionCfg(item)
+                          const capPx = captionReservePx(c)
+                          return (
+                            <>
+                              <img src={imgSrc} alt="barcode" draggable={false} onLoad={(ev)=>rememberPreviewRatio(idx, ev)} style={is2d ? {maxWidth:'100%',maxHeight:`calc(100% - ${capPx}px)`, pointerEvents:'none'} : {maxHeight:`calc(100% - ${capPx}px)`,maxWidth:'none',width:'auto', pointerEvents:'none'}} />
+                              {c.enabled && c.text ? (
+                                <div style={{ position:'absolute', left:'50%', bottom:0, transform:'translateX(-50%)', fontSize:c.size+'px', lineHeight:1.1, fontFamily:captionFontCss(c.font), color:'#111827', whiteSpace:'nowrap', pointerEvents:'none' }}>
+                                  {c.text}
+                                </div>
+                              ) : null}
+                            </>
+                          )
+                        })()}
                       </div>
-                    ) : (imgSrc==='ERROR' ? <span className="small" style={{color:'#b91c1c'}}>blad</span> : <span className="small">pusta</span>)}
+                    ) : (imgSrc==='ERROR' ? <span className="small" style={{color:'#b91c1c'}}>blad</span> : <span className="small slot-empty">pusta</span>)}
                   </div>
                 )
               })}
@@ -559,6 +904,9 @@ export default function BarcodeStudio() {
     setPadMM(def.padMM);
     setSkip(0);
     setShowGrid(true);
+    setShowCutLines(false);
+    setCutLineWeight('standard');
+    setCutLineStyle('solid');
     setEditMode(true);
     setEditAll(false);
     setLockAspect(false);
@@ -587,16 +935,23 @@ export default function BarcodeStudio() {
     const pdf = new jsPDF({ unit:'mm', format:[pageW,pageH], orientation });
     const { innerW, innerH, cellW, cellH } = metrics();
     const exportImageCache = new Map();
+    const captionImageCache = new Map();
     let processed = 0;
 
     for (let p=0; p<pages; p++) {
       if (p>0) pdf.addPage([pageW,pageH], orientation);
+      drawPdfCutLines(pdf, innerW, innerH, cellW, cellH)
 
       for (let i=0;i<perPage;i++) {
         const g=p*perPage+i; const idx=g - skip; const item = idx>=0 && idx<labels.length ? labels[idx] : null;
         if (!item) continue;
         const is2d = TWO_D_SET.has(item.bcid);
         let x, y, drawW, drawH;
+        const c = captionCfg(item)
+        // Calibrated for closer match with on-screen preview for custom captions.
+        const capGapMm = c.enabled && c.text ? Math.max(0, c.gap) * 0.16 : 0
+        const capTextMm = c.enabled && c.text ? Math.max(3.0, (c.size * 1.8) * 0.264583) : 0
+        const captionMm = capGapMm + capTextMm
         const mulX = editAll?globalMulX:((sizeOverrides[idx]?.x)||1);
         const mulY = editAll?globalMulY:((sizeOverrides[idx]?.y)||1);
         if (!freeLayout){
@@ -606,9 +961,11 @@ export default function BarcodeStudio() {
           x = padMM + innerX + (cellW - drawW)/2; y = padMM + innerY + (cellH - drawH)/2;
         } else {
           const col = i % cols; const row = Math.floor(i / cols);
-          const defX = col*(cellW+gapMM); const defY = row*(cellH+gapMM);
+          drawH = cellH * mulY;
+          drawW = is2d ? (cellW*mulX) : oneDWidthMM(idx, drawH);
+          const defX = col*(cellW+gapMM) + (cellW - drawW) / 2;
+          const defY = row*(cellH+gapMM) + (cellH - drawH) / 2;
           const pos = posOverrides[idx] || { x:defX, y:defY };
-          drawW = is2d ? (cellW*mulX) : cellW; drawH = (TWO_D_SET.has(item.bcid)? (cellH*mulY) : (cellH*mulY));
           x = padMM + pos.x; y = padMM + pos.y;
         }
 
@@ -623,11 +980,18 @@ export default function BarcodeStudio() {
           // Width in PDF is controlled by drawW to avoid fitRect cancelling the effect.
           opts.scaleX = base;
           opts.height = Math.round((Number(item.height)||50) * (Number(pageScale)||1) * (editAll?globalMulY:((sizeOverrides[idx]?.y)||1)));
-          if (!q.forceNoText && hasTextEnabled(item)) { opts.includetext=true; opts.textxalign='center'; opts.textfont=hrtFont; }
+          if (!q.forceNoText && hasTextEnabled(item) && !hasCustomCaption(item)) {
+            opts.includetext = true
+            opts.textxalign = 'center'
+            opts.textfont = hrtFont
+            opts.textsize = Math.max(6, Math.min(24, Number(item.hrtSize ?? hrtSize) || 10))
+            opts.textyoffset = Math.max(-20, Math.min(80, Number(item.hrtGap ?? hrtGap) || 0))
+          }
         }
         const exportKey = [
           opts.bcid, opts.text, opts.rotate, opts.scaleX, opts.scaleY || '', opts.height || '',
-          opts.includetext ? 1 : 0, opts.textfont || '', canvasSize, canvasWidth, canvasHeight, q.imageType, q.imageQuality
+          opts.includetext ? 1 : 0, opts.textfont || '', opts.textsize || '', opts.textyoffset || '',
+          canvasSize, canvasWidth, canvasHeight, q.imageType, q.imageQuality
         ].join('|');
         let cached = exportImageCache.get(exportKey);
         if (!cached) {
@@ -637,17 +1001,41 @@ export default function BarcodeStudio() {
           exportImageCache.set(exportKey, cached);
         }
         const { dataUrl, size } = cached;
-        let fit = { x, y, w: drawW, h: drawH };
+        const imageBoxH = Math.max(1, drawH - captionMm)
+        let fit = { x, y, w: drawW, h: imageBoxH };
         if (size && is2d) {
-          fit = fitRect(x, y, drawW, drawH, size.w, size.h);
+          fit = fitRect(x, y, drawW, imageBoxH, size.w, size.h);
         } else if (size && !is2d) {
           const ratio = size.w / Math.max(1, size.h);
-          const baseWAtH = drawH * ratio;
+          const baseWAtH = imageBoxH * ratio;
           const scaledW = Math.max(1, baseWAtH * mulX);
           const finalW = Math.min(drawW, scaledW);
-          fit = { x: x + (drawW - finalW)/2, y, w: finalW, h: drawH };
+          fit = { x: x + (drawW - finalW)/2, y, w: finalW, h: imageBoxH };
         }
         pdf.addImage(dataUrl, q.imageType, fit.x, fit.y, fit.w, fit.h);
+        if (capTextMm > 0) {
+          const capWpx = Math.max(64, Math.round(drawW * q.pxPerMm))
+          const capHpx = Math.max(20, Math.round(capTextMm * q.pxPerMm))
+          const capKey = `${c.text}|${c.font}|${c.size}|${capWpx}|${capHpx}`
+          let capImg = captionImageCache.get(capKey)
+          if (!capImg) {
+            capImg = makeCaptionBitmap(c.text, captionFontCss(c.font), capWpx, capHpx)
+            if (capImg) captionImageCache.set(capKey, capImg)
+          }
+          if (capImg?.dataUrl) {
+            const textY = y + imageBoxH + capGapMm
+            const ratio = (capImg.textW > 0 && capImg.textH > 0) ? (capImg.textW / capImg.textH) : 1
+            const capWmm = Math.max(6, Math.min(drawW, capTextMm * ratio))
+            const capX = x + (drawW - capWmm) / 2
+            pdf.addImage(capImg.dataUrl, 'PNG', capX, textY, capWmm, capTextMm)
+          } else {
+            // Fallback path if canvas creation fails.
+            pdf.setFont(pdfFontName(c.font), 'normal')
+            pdf.setFontSize(Math.max(6, Math.min(72, c.size)) * 0.75)
+            const textY = y + imageBoxH + capGapMm
+            pdf.text(c.text, x + drawW / 2, textY, { align:'center', baseline:'top' })
+          }
+        }
 
         processed++;
         if (processed % 16 === 0) await new Promise((r) => setTimeout(r, 0));
@@ -668,6 +1056,13 @@ export default function BarcodeStudio() {
   const panelBcid = selectedPrimary != null ? (labels[selectedPrimary]?.bcid || 'code128') : 'code128'
   const panelText = selectedPrimary != null ? (labels[selectedPrimary]?.text || '') : ''
   const panelIncludeText = selectedPrimary != null ? hasTextEnabled(labels[selectedPrimary]) : true
+  const panelHrtSize = selectedPrimary != null ? Math.max(6, Math.min(24, Number(labels[selectedPrimary]?.hrtSize ?? hrtSize) || 10)) : Math.max(6, Math.min(24, Number(hrtSize) || 10))
+  const panelHrtGap = selectedPrimary != null ? Math.max(-20, Math.min(80, Number(labels[selectedPrimary]?.hrtGap ?? hrtGap) || 0)) : Math.max(-20, Math.min(80, Number(hrtGap) || 0))
+  const panelCustomCaptionEnabled = selectedPrimary != null ? !!labels[selectedPrimary]?.customCaptionEnabled : !!customCaptionEnabled
+  const panelCustomCaptionText = selectedPrimary != null ? (labels[selectedPrimary]?.customCaptionText ?? '') : (customCaptionText ?? '')
+  const panelCustomCaptionFont = selectedPrimary != null ? (labels[selectedPrimary]?.customCaptionFont || 'Arial') : (customCaptionFont || 'Arial')
+  const panelCustomCaptionSize = selectedPrimary != null ? Math.max(8, Math.min(72, Number(labels[selectedPrimary]?.customCaptionSize ?? customCaptionSize) || 12)) : Math.max(8, Math.min(72, Number(customCaptionSize) || 12))
+  const panelCustomCaptionGap = selectedPrimary != null ? Math.max(-20, Math.min(80, Number(labels[selectedPrimary]?.customCaptionGap ?? customCaptionGap) || 0)) : Math.max(-20, Math.min(80, Number(customCaptionGap) || 0))
 
   function setSelectionMulX(v){
     if (!targetIds.length) return
@@ -704,13 +1099,58 @@ export default function BarcodeStudio() {
   function setSelectionIncludeText(enabled){
     if (!targetIds.length) return
     const picked = new Set(targetIds)
-    setLabels((prev) => prev.map((l, i) => picked.has(i) ? ({ ...l, includeText: !!enabled }) : l))
+    setLabels((prev) => prev.map((l, i) => picked.has(i) ? ({ ...l, includeText: !!enabled, ...(enabled ? { customCaptionEnabled: false } : {}) }) : l))
   }
 
   function setSelectionText(next){
     if (!targetIds.length) return
     const picked = new Set(targetIds)
     setLabels((prev) => prev.map((l, i) => picked.has(i) ? ({ ...l, text: next }) : l))
+  }
+
+  function setSelectionHrtSize(next){
+    if (!targetIds.length) return
+    const v = Math.max(6, Math.min(24, Number(next) || 10))
+    const picked = new Set(targetIds)
+    setLabels((prev) => prev.map((l, i) => picked.has(i) ? ({ ...l, hrtSize: v }) : l))
+  }
+
+  function setSelectionHrtGap(next){
+    if (!targetIds.length) return
+    const v = Math.max(-20, Math.min(80, Number(next) || 0))
+    const picked = new Set(targetIds)
+    setLabels((prev) => prev.map((l, i) => picked.has(i) ? ({ ...l, hrtGap: v }) : l))
+  }
+
+  function setSelectionCustomCaptionEnabled(enabled){
+    if (!targetIds.length) return
+    const picked = new Set(targetIds)
+    setLabels((prev) => prev.map((l, i) => picked.has(i) ? ({ ...l, customCaptionEnabled: !!enabled, ...(enabled ? { includeText: false } : {}) }) : l))
+  }
+
+  function setSelectionCustomCaptionText(next){
+    if (!targetIds.length) return
+    const picked = new Set(targetIds)
+    setLabels((prev) => prev.map((l, i) => picked.has(i) ? ({ ...l, customCaptionText: next }) : l))
+  }
+
+  function setSelectionCustomCaptionFont(next){
+    if (!targetIds.length) return
+    const picked = new Set(targetIds)
+    setLabels((prev) => prev.map((l, i) => picked.has(i) ? ({ ...l, customCaptionFont: next }) : l))
+  }
+
+  function setSelectionCustomCaptionSize(next){
+    if (!targetIds.length) return
+    const v = Math.max(8, Math.min(72, Number(next) || 12))
+    const picked = new Set(targetIds)
+    setLabels((prev) => prev.map((l, i) => picked.has(i) ? ({ ...l, customCaptionSize: v }) : l))
+  }
+  function setSelectionCustomCaptionGap(next){
+    if (!targetIds.length) return
+    const v = Math.max(-20, Math.min(80, Number(next) || 0))
+    const picked = new Set(targetIds)
+    setLabels((prev) => prev.map((l, i) => picked.has(i) ? ({ ...l, customCaptionGap: v }) : l))
   }
 
   function applyNumberWheel(el, deltaY){
@@ -787,6 +1227,7 @@ export default function BarcodeStudio() {
 
   return (
     <div ref={rootRef} className="container" onWheelCapture={onNumberWheelCapture}>
+      <style>{`@media print { @page { size: ${pageW}mm ${pageH}mm; margin: 0; } }`}</style>
       <div className="tabs no-print">
         {['generator','batch','labels'].map(tabKey => (
           <div key={tabKey} className={'tab '+(tab===tabKey?'active':'')} onClick={()=>setTab(tabKey)}>
@@ -814,6 +1255,20 @@ export default function BarcodeStudio() {
           setRotate={setRotate}
           hrtFont={hrtFont}
           setHrtFont={setHrtFont}
+          hrtSize={hrtSize}
+          setHrtSize={setHrtSize}
+          hrtGap={hrtGap}
+          setHrtGap={setHrtGap}
+          customCaptionEnabled={customCaptionEnabled}
+          setCustomCaptionEnabled={setCustomCaptionEnabled}
+          customCaptionText={customCaptionText}
+          setCustomCaptionText={setCustomCaptionText}
+          customCaptionFont={customCaptionFont}
+          setCustomCaptionFont={setCustomCaptionFont}
+          customCaptionSize={customCaptionSize}
+          setCustomCaptionSize={setCustomCaptionSize}
+          customCaptionGap={customCaptionGap}
+          setCustomCaptionGap={setCustomCaptionGap}
           addCurrentToLabels={addCurrentToLabels}
           pngMul={pngMul}
           setPngMul={setPngMul}
@@ -858,7 +1313,8 @@ export default function BarcodeStudio() {
               presetKey, setPresetKey, pageW, setPageW, pageH, setPageH, cols, setCols, rows, setRows,
               selectedIdx, padMM, setPadMM,
               gapMM, setGapMM, skip, setSkip, pageScale, setPageScale, pageRotate, setPageRotate,
-              showGrid, setShowGrid, editMode, setEditMode, freeLayout, setFreeLayout, editAll, lockAspect,
+              showGrid, setShowGrid, showCutLines, setShowCutLines, cutLineWeight, setCutLineWeight, cutLineStyle, setCutLineStyle,
+              editMode, setEditMode, freeLayout, setFreeLayout, editAll, lockAspect,
               setLockAspect, globalMulX, setGlobalMulX, globalMulY, setGlobalMulY, snapMM, setSnapMM,
               posOverrides, labels, perPage, pages, sheetZoom, viewportRef, contentRef, pdfQuality, setPdfQuality,
             }}
@@ -870,33 +1326,70 @@ export default function BarcodeStudio() {
           />
           <div className={'selection-drawer no-print ' + ((selectedCount>0 || editAll) ? 'open' : '')}>
             <div ref={drawerRef} className="selection-drawer-inner">
-              <label className="hstack small">
-                <input type="checkbox" checked={editAll} onChange={(e)=>onToggleEditAll(e.target.checked)} />
-                {t('labels.editAll')}
-              </label>
-              <div className="small">
-                {editAll ? t('labels.scopeAll', { count: targetCount }) : t('labels.selectedCount', { count: selectedCount })}
+              <div className="selection-row selection-row-top">
+                <label className="hstack small">
+                  <input type="checkbox" checked={editAll} onChange={(e)=>onToggleEditAll(e.target.checked)} />
+                  {t('labels.editAll')}
+                </label>
+                <div className="small">
+                  {editAll ? t('labels.scopeAll', { count: targetCount }) : t('labels.selectedCount', { count: selectedCount })}
+                </div>
+                <div className="hstack" style={{ alignItems:'center' }}>
+                  <span className="small">{t('labels.widthShort')}</span>
+                  <input className="input" type="range" min="0.2" max="5" step="0.05" value={panelMulX} onChange={(e)=>setSelectionMulX(parseFloat(e.target.value||'1'))} style={{ width: 180 }} />
+                  <input className="input" type="number" min="0.2" max="5" step="0.1" value={panelMulX} onChange={(e)=>setSelectionMulX(parseFloat(e.target.value||'1'))} style={{ width: 74 }} />
+                </div>
+                <div className="hstack" style={{ alignItems:'center' }}>
+                  <span className="small">{t('labels.heightShort')}</span>
+                  <input className="input" type="range" min="0.2" max="5" step="0.05" value={panelMulY} onChange={(e)=>setSelectionMulY(parseFloat(e.target.value||'1'))} style={{ width: 180 }} />
+                  <input className="input" type="number" min="0.2" max="5" step="0.1" value={panelMulY} onChange={(e)=>setSelectionMulY(parseFloat(e.target.value||'1'))} style={{ width: 74 }} />
+                </div>
+                <select className="select" value={panelBcid} onChange={(e)=>setSelectionBcid(e.target.value)} style={{ minWidth: 180 }}>
+                  {POPULAR_CODE_IDS.map((id) => <option key={id} value={id}>{t(`codes.${id.replace('-', '_')}.label`)}</option>)}
+                </select>
+                <input className="input selection-content-input" type="text" value={panelText} disabled={editAll} onChange={(e)=>setSelectionText(e.target.value)} placeholder={editAll ? t('labels.textDisabledInEditAll') : t('labels.codeContent')} style={{ opacity: editAll ? 0.55 : 1 }} />
               </div>
-              <div className="hstack" style={{ alignItems:'center' }}>
-                <span className="small">{t('labels.widthShort')}</span>
-                <input className="input" type="range" min="0.2" max="5" step="0.05" value={panelMulX} onChange={(e)=>setSelectionMulX(parseFloat(e.target.value||'1'))} style={{ width: 180 }} />
-                <input className="input" type="number" min="0.2" max="5" step="0.1" value={panelMulX} onChange={(e)=>setSelectionMulX(parseFloat(e.target.value||'1'))} style={{ width: 74 }} />
+              <div className="selection-row selection-row-bottom">
+                <label className="hstack small">
+                  <input type="checkbox" checked={panelIncludeText} onChange={(e)=>setSelectionIncludeText(e.target.checked)} />
+                  {t('labels.includeText')}
+                </label>
+                <label className="hstack small">
+                  {t('generator.hrtSize')}
+                  <input className="input" type="number" min="6" max="24" step="1" value={panelHrtSize} onChange={(e)=>setSelectionHrtSize(parseInt(e.target.value||'10',10))} style={{ width: 80 }} />
+                </label>
+                <label className="hstack small">
+                  {t('generator.hrtGap')}
+                  <input className="input" type="number" min="-20" max="80" step="1" value={panelHrtGap} onChange={(e)=>setSelectionHrtGap(parseInt(e.target.value||'0',10))} style={{ width: 80 }} />
+                </label>
+                <span className="selection-separator" aria-hidden="true"></span>
+                <label className="hstack small">
+                  <input type="checkbox" checked={panelCustomCaptionEnabled} onChange={(e)=>setSelectionCustomCaptionEnabled(e.target.checked)} />
+                  {t('generator.customCaption')}
+                </label>
+                {panelCustomCaptionEnabled ? (
+                  <>
+                    <input className="input" type="text" value={panelCustomCaptionText} onChange={(e)=>setSelectionCustomCaptionText(e.target.value)} placeholder={t('generator.customCaptionText')} style={{ minWidth: 170 }} />
+                    <select className="select" value={panelCustomCaptionFont} onChange={(e)=>setSelectionCustomCaptionFont(e.target.value)} style={{ minWidth: 150 }}>
+                      <option value="Arial">Arial</option>
+                      <option value="Courier New">Courier New</option>
+                      <option value="Times New Roman">Times New Roman</option>
+                      <option value="Georgia">Georgia</option>
+                      <option value="Verdana">Verdana</option>
+                    </select>
+                    <label className="hstack small">
+                      {t('generator.customCaptionSize')}
+                      <input className="input" type="number" min="8" max="72" step="1" value={panelCustomCaptionSize} onChange={(e)=>setSelectionCustomCaptionSize(parseInt(e.target.value||'12',10))} style={{ width: 80 }} />
+                    </label>
+                    <label className="hstack small">
+                      {t('generator.customCaptionGap')}
+                      <input className="input" type="number" min="-20" max="80" step="1" value={panelCustomCaptionGap} onChange={(e)=>setSelectionCustomCaptionGap(parseInt(e.target.value||'0',10))} style={{ width: 80 }} />
+                    </label>
+                  </>
+                ) : null}
+                <button className="button" onClick={resetSelectionChanges}>{t('labels.resetChanges')}</button>
+                <button className="button" onClick={closeSelectionPanel}>{t('labels.clearSelection')}</button>
               </div>
-              <div className="hstack" style={{ alignItems:'center' }}>
-                <span className="small">{t('labels.heightShort')}</span>
-                <input className="input" type="range" min="0.2" max="5" step="0.05" value={panelMulY} onChange={(e)=>setSelectionMulY(parseFloat(e.target.value||'1'))} style={{ width: 180 }} />
-                <input className="input" type="number" min="0.2" max="5" step="0.1" value={panelMulY} onChange={(e)=>setSelectionMulY(parseFloat(e.target.value||'1'))} style={{ width: 74 }} />
-              </div>
-              <select className="select" value={panelBcid} onChange={(e)=>setSelectionBcid(e.target.value)} style={{ minWidth: 180 }}>
-                {POPULAR_CODE_IDS.map((id) => <option key={id} value={id}>{t(`codes.${id.replace('-', '_')}.label`)}</option>)}
-              </select>
-              <label className="hstack small">
-                <input type="checkbox" checked={panelIncludeText} onChange={(e)=>setSelectionIncludeText(e.target.checked)} />
-                {t('labels.includeText')}
-              </label>
-              <input className="input" type="text" value={panelText} disabled={editAll} onChange={(e)=>setSelectionText(e.target.value)} placeholder={editAll ? t('labels.textDisabledInEditAll') : t('labels.codeContent')} style={{ minWidth: 220, opacity: editAll ? 0.55 : 1 }} />
-              <button className="button" onClick={resetSelectionChanges}>{t('labels.resetChanges')}</button>
-              <button className="button" onClick={closeSelectionPanel}>{t('labels.clearSelection')}</button>
             </div>
           </div>
         </>

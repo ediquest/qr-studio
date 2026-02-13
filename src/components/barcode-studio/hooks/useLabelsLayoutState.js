@@ -4,6 +4,9 @@ export default function useLabelsLayoutState({ presets }) {
   const [labels, setLabels] = useState([])
   const [skip, setSkip] = useState(0)
   const [showGrid, setShowGrid] = useState(true)
+  const [showCutLines, setShowCutLines] = useState(false)
+  const [cutLineWeight, setCutLineWeight] = useState('standard')
+  const [cutLineStyle, setCutLineStyle] = useState('solid')
   const [editMode, setEditMode] = useState(true)
   const [editAll, setEditAll] = useState(false)
   const [globalMulX, setGlobalMulX] = useState(1)
@@ -50,6 +53,12 @@ export default function useLabelsLayoutState({ presets }) {
     setSkip,
     showGrid,
     setShowGrid,
+    showCutLines,
+    setShowCutLines,
+    cutLineWeight,
+    setCutLineWeight,
+    cutLineStyle,
+    setCutLineStyle,
     editMode,
     setEditMode,
     editAll,

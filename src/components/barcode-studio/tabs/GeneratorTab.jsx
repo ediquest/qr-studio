@@ -66,6 +66,20 @@ export default function GeneratorTab({
   setRotate,
   hrtFont,
   setHrtFont,
+  hrtSize,
+  setHrtSize,
+  hrtGap,
+  setHrtGap,
+  customCaptionEnabled,
+  setCustomCaptionEnabled,
+  customCaptionText,
+  setCustomCaptionText,
+  customCaptionFont,
+  setCustomCaptionFont,
+  customCaptionSize,
+  setCustomCaptionSize,
+  customCaptionGap,
+  setCustomCaptionGap,
   addCurrentToLabels,
   pngMul,
   setPngMul,
@@ -78,6 +92,20 @@ export default function GeneratorTab({
   gs1Report,
 }) {
   const is2d = is2dSet.has(bcid)
+  const customCaptionTextResolved = ((customCaptionText || '').trim()) || ((text || '').trim())
+  const hasCustomCaption = !!customCaptionEnabled && !!customCaptionTextResolved
+  const previewCaptionText = hasCustomCaption
+    ? customCaptionTextResolved
+    : ((!is2d && includeText) ? ((text || '').trim()) : '')
+  const previewCaptionFont = hasCustomCaption
+    ? (customCaptionFont || 'Arial')
+    : (hrtFont === 'OCR-A' ? '"OCR A Std", "OCR A Extended", "Courier New", monospace' : '"OCR B Std", "OCRB", "Courier New", monospace')
+  const previewCaptionSize = hasCustomCaption
+    ? Math.max(8, Math.min(72, Number(customCaptionSize) || 12))
+    : Math.max(6, Math.min(24, Number(hrtSize) || 10))
+  const previewCaptionReserve = previewCaptionText
+    ? Math.max(18, Math.min(280, Math.round((previewCaptionSize * 1.9) + Math.max(0, hasCustomCaption ? (Number(customCaptionGap) || 0) : (Number(hrtGap) || 0)) + 8)))
+    : 0
 
   const downloadPng = () => {
     try {
@@ -90,10 +118,12 @@ export default function GeneratorTab({
       } else {
         opts.scaleX = base
         opts.height = (Number(height) || 50) * (Number(pngMul) || 1)
-        if (includeText) {
+        if (includeText && !hasCustomCaption) {
           opts.includetext = true
           opts.textxalign = 'center'
           opts.textfont = hrtFont
+          opts.textsize = Math.max(6, Math.min(24, Number(hrtSize) || 10))
+          opts.textyoffset = Math.max(-20, Math.min(80, Number(hrtGap) || 0))
         }
       }
       const png = makeBitmap(opts)
@@ -117,10 +147,12 @@ export default function GeneratorTab({
       } else {
         opts.scaleX = base
         opts.height = Number(height) || 50
-        if (includeText) {
+        if (includeText && !hasCustomCaption) {
           opts.includetext = true
           opts.textxalign = 'center'
           opts.textfont = hrtFont
+          opts.textsize = Math.max(6, Math.min(24, Number(hrtSize) || 10))
+          opts.textyoffset = Math.max(-20, Math.min(80, Number(hrtGap) || 0))
         }
       }
       const svg = toSvg(opts)
@@ -187,7 +219,15 @@ export default function GeneratorTab({
         <Toolbar>
           {!is2d && (
             <label className="hstack small">
-              <input type="checkbox" checked={includeText} onChange={(e) => setIncludeText(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={includeText}
+                onChange={(e) => {
+                  const on = e.target.checked
+                  setIncludeText(on)
+                  if (on) setCustomCaptionEnabled(false)
+                }}
+              />
               {t('generator.hrtText')}
             </label>
           )}
@@ -203,6 +243,76 @@ export default function GeneratorTab({
               <option value="OCR-B">OCR-B</option>
             </select>
           </label>
+          <label className="hstack small">{t('generator.hrtSize')}
+            <NumberWheelInput
+              value={hrtSize}
+              min={6}
+              max={24}
+              step={1}
+              style={{ width: 90 }}
+              disabled={is2d || !includeText}
+              onValue={(v) => setHrtSize(parseInt(String(v || 10), 10))}
+            />
+          </label>
+          <label className="hstack small">{t('generator.hrtGap')}
+            <NumberWheelInput
+              value={hrtGap}
+              min={-20}
+              max={80}
+              step={1}
+              style={{ width: 90 }}
+              disabled={is2d || !includeText}
+              onValue={(v) => setHrtGap(parseInt(String(v || 0), 10))}
+            />
+          </label>
+          <label className="hstack small">
+            <input
+              type="checkbox"
+              checked={customCaptionEnabled}
+              onChange={(e) => {
+                const on = e.target.checked
+                setCustomCaptionEnabled(on)
+                if (on && !is2d) setIncludeText(false)
+              }}
+            />
+            {t('generator.customCaption')}
+          </label>
+          {customCaptionEnabled ? (
+            <>
+              <label className="hstack small">{t('generator.customCaptionText')}
+                <input className="input" type="text" value={customCaptionText} onChange={(e) => setCustomCaptionText(e.target.value)} style={{ width: 160 }} />
+              </label>
+              <label className="hstack small">{t('generator.customCaptionFont')}
+                <select className="select" value={customCaptionFont} onChange={(e) => setCustomCaptionFont(e.target.value)}>
+                  <option value="Arial">Arial</option>
+                  <option value="Courier New">Courier New</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Verdana">Verdana</option>
+                </select>
+              </label>
+              <label className="hstack small">{t('generator.customCaptionSize')}
+                <NumberWheelInput
+                  value={customCaptionSize}
+                  min={8}
+                  max={72}
+                  step={1}
+                  style={{ width: 90 }}
+                  onValue={(v) => setCustomCaptionSize(parseInt(String(v || 12), 10))}
+                />
+              </label>
+              <label className="hstack small">{t('generator.customCaptionGap')}
+                <NumberWheelInput
+                  value={customCaptionGap}
+                  min={-20}
+                  max={80}
+                  step={1}
+                  style={{ width: 90 }}
+                  onValue={(v) => setCustomCaptionGap(parseInt(String(v || 0), 10))}
+                />
+              </label>
+            </>
+          ) : null}
           <button className="button" onClick={addCurrentToLabels}>
             {t('generator.addToSheet')}
           </button>
@@ -213,7 +323,38 @@ export default function GeneratorTab({
         <div className="hstack" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
           <div><strong>{t('generator.preview')}</strong> <span className="badge"> {is2d ? '2D' : '1D'} • {t(`codes.${(typeof bcid === 'string' ? bcid : '').replace('-', '_')}.label`)}</span></div>
         </div>
-        <div className="preview">{genPreviewUrl ? <img src={genPreviewUrl} alt="preview" /> : <div className="small">{t('generator.noPreview')}</div>}</div>
+        <div className="preview">
+          {genPreviewUrl ? (
+            <div style={{ width:'100%', height:'100%', display:'flex', flexDirection:'column' }}>
+              <div style={{ flex:'1 1 auto', minHeight:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <img src={genPreviewUrl} alt="preview" style={{ flex:'0 0 auto', maxWidth:'100%', maxHeight:'100%' }} />
+              </div>
+              {previewCaptionText ? (
+                <div
+                  style={{
+                    height: previewCaptionReserve + 'px',
+                    minHeight: previewCaptionReserve + 'px',
+                    display:'flex',
+                    alignItems:'flex-start',
+                    justifyContent:'center',
+                    paddingTop: Math.max(0, hasCustomCaption ? (Number(customCaptionGap) || 0) : (Number(hrtGap) || 0)),
+                    fontSize: previewCaptionSize,
+                    fontFamily: previewCaptionFont,
+                    color:'#0f172a',
+                    lineHeight:1.1,
+                    whiteSpace:'nowrap',
+                    maxWidth:'100%',
+                    overflow:'hidden',
+                    textOverflow:'ellipsis',
+                    pointerEvents:'none',
+                  }}
+                >
+                  {previewCaptionText}
+                </div>
+              ) : null}
+            </div>
+          ) : <div className="small">{t('generator.noPreview')}</div>}
+        </div>
 
         <div className="hstack" style={{ gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <label className="hstack small">{t('generator.pngTimes')}

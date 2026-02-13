@@ -52,7 +52,7 @@ export default function LabelsTab({
     presetKey, setPresetKey, pageW, setPageW, pageH, setPageH, cols, setCols, rows, setRows,
     selectedIdx, padMM, setPadMM,
     gapMM, setGapMM, skip, setSkip, pageScale, setPageScale, pageRotate, setPageRotate, showGrid,
-    setShowGrid, freeLayout, setFreeLayout, editAll, lockAspect,
+    setShowGrid, showCutLines, setShowCutLines, cutLineWeight, setCutLineWeight, cutLineStyle, setCutLineStyle, freeLayout, setFreeLayout, editAll, lockAspect,
     setLockAspect, globalMulX, setGlobalMulX, globalMulY, setGlobalMulY, snapMM, setSnapMM,
     posOverrides, labels, perPage, pages, sheetZoom, viewportRef, contentRef, pdfQuality, setPdfQuality,
   } = layout
@@ -118,8 +118,31 @@ export default function LabelsTab({
           <div className="hstack" style={{ gap: 12, flexWrap: 'nowrap', marginTop: 6 }}>
             <label className="hstack small">
               <input type="checkbox" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} />
-              {t('labels.showGrid')}
+              {t('labels.showSlots')}
             </label>
+            <label className="hstack small">
+              <input type="checkbox" checked={showCutLines} onChange={(e) => setShowCutLines(e.target.checked)} />
+              {t('labels.showCutLines')}
+            </label>
+            {showCutLines ? (
+              <>
+                <label className="hstack small">
+                  {t('labels.cutLineWeight')}
+                  <select className="select" value={cutLineWeight} onChange={(e) => setCutLineWeight(e.target.value)}>
+                    <option value="thin">{t('labels.cutWeightThin')}</option>
+                    <option value="standard">{t('labels.cutWeightStandard')}</option>
+                    <option value="thick">{t('labels.cutWeightThick')}</option>
+                  </select>
+                </label>
+                <label className="hstack small">
+                  {t('labels.cutLineStyle')}
+                  <select className="select" value={cutLineStyle} onChange={(e) => setCutLineStyle(e.target.value)}>
+                    <option value="solid">{t('labels.cutStyleSolid')}</option>
+                    <option value="dashed">{t('labels.cutStyleDashed')}</option>
+                  </select>
+                </label>
+              </>
+            ) : null}
             <label className="hstack small">
               <input type="checkbox" checked={freeLayout} onChange={(e) => setFreeLayout(e.target.checked)} />
               {t('labels.freeLayout')}
@@ -193,68 +216,6 @@ export default function LabelsTab({
             </label>
             <button className="button" onClick={resetLayoutDefaults}>{t('labels.reset')}</button>
             <button className="button" onClick={clearLabels}>{t('labels.clearLabels')}</button>
-            <div className="hstack" style={{ marginLeft: 16, gap: 8 }}>
-              <button className="button icon-btn" title="{t('labels.alignLeft')}" onClick={() => {
-                if (editAll) {
-                  setPosOverrides((prev) => { const out = { ...prev }; for (let i = 0; i < labels.length; i++) { const base = out[i] ?? defaultPosForIndex(i); const x = showGrid ? defaultPosForIndex(i).x : 0; const p = snapPos({ x, y: base.y }); out[i] = showGrid ? clampPosToCell(i, p) : clampPos(i, p) } return out })
-                } else if (selectedIdx != null) {
-                  setPosOverrides((prev) => { const base = prev[selectedIdx] ?? defaultPosForIndex(selectedIdx); const x = showGrid ? defaultPosForIndex(selectedIdx).x : 0; const p = snapPos({ x, y: base.y }); return { ...prev, [selectedIdx]: showGrid ? clampPosToCell(selectedIdx, p) : clampPos(selectedIdx, p) } })
-                }
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#94a3b8" />
-                  <path d="M6 3v18M6 8h10M6 16h12" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </button>
-              <button className="button icon-btn" title="WyĹ›rodkuj poziomo" onClick={() => {
-                if (editAll) {
-                  setPosOverrides((prev) => { const out = { ...prev }; const { innerW, cellW } = metrics(); for (let i = 0; i < labels.length; i++) { const { w } = nodeSizeMM(i); const base = out[i] ?? defaultPosForIndex(i); const x = showGrid ? (defaultPosForIndex(i).x + (cellW - w) / 2) : (innerW - w) / 2; const p = snapPos({ x, y: base.y }); out[i] = showGrid ? clampPosToCell(i, p) : clampPos(i, p) } return out })
-                } else if (selectedIdx != null) {
-                  const { innerW, cellW } = metrics(); const { w } = nodeSizeMM(selectedIdx); const base = (posOverrides[selectedIdx] ?? defaultPosForIndex(selectedIdx)); const x = showGrid ? (defaultPosForIndex(selectedIdx).x + (cellW - w) / 2) : (innerW - w) / 2; const p = snapPos({ x, y: base.y }); setPosOverrides((prev) => ({ ...prev, [selectedIdx]: showGrid ? clampPosToCell(selectedIdx, p) : clampPos(selectedIdx, p) }))
-                }
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#94a3b8" />
-                  <path d="M12 3v18M6 8h12M4 16h16" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </button>
-              <button className="button icon-btn" title="{t('labels.alignTop')}" onClick={() => {
-                if (editAll) {
-                  setPosOverrides((prev) => { const out = { ...prev }; for (let i = 0; i < labels.length; i++) { const base = out[i] ?? defaultPosForIndex(i); const y = showGrid ? defaultPosForIndex(i).y : 0; const p = snapPos({ x: base.x, y }); out[i] = showGrid ? clampPosToCell(i, p) : clampPos(i, p) } return out })
-                } else if (selectedIdx != null) {
-                  setPosOverrides((prev) => { const base = prev[selectedIdx] ?? defaultPosForIndex(selectedIdx); const y = showGrid ? defaultPosForIndex(selectedIdx).y : 0; const p = snapPos({ x: base.x, y }); return { ...prev, [selectedIdx]: showGrid ? clampPosToCell(selectedIdx, p) : clampPos(selectedIdx, p) } })
-                }
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#94a3b8" />
-                  <path d="M3 6h18M8 6v10M16 6v12" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </button>
-              <button className="button icon-btn" title="{t('labels.centerV')}" onClick={() => {
-                if (editAll) {
-                  setPosOverrides((prev) => { const out = { ...prev }; const { innerH, cellH } = metrics(); for (let i = 0; i < labels.length; i++) { const { h } = nodeSizeMM(i); const base = out[i] ?? defaultPosForIndex(i); const y = showGrid ? (defaultPosForIndex(i).y + (cellH - h) / 2) : (innerH - h) / 2; const p = snapPos({ x: base.x, y }); out[i] = showGrid ? clampPosToCell(i, p) : clampPos(i, p) } return out })
-                } else if (selectedIdx != null) {
-                  const { innerH, cellH } = metrics(); const { h } = nodeSizeMM(selectedIdx); const base = (posOverrides[selectedIdx] ?? defaultPosForIndex(selectedIdx)); const y = showGrid ? (defaultPosForIndex(selectedIdx).y + (cellH - h) / 2) : (innerH - h) / 2; const p = snapPos({ x: base.x, y }); setPosOverrides((prev) => ({ ...prev, [selectedIdx]: showGrid ? clampPosToCell(selectedIdx, p) : clampPos(selectedIdx, p) }))
-                }
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#94a3b8" />
-                  <path d="M3 12h18M8 4v16M16 6v12" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </button>
-              <button className="button icon-btn" title="WyĹ›rodkuj (H+V)" onClick={() => {
-                if (editAll) {
-                  setPosOverrides((prev) => { const out = { ...prev }; const { innerW, innerH, cellW, cellH } = metrics(); for (let i = 0; i < labels.length; i++) { const { w, h } = nodeSizeMM(i); const x = showGrid ? (defaultPosForIndex(i).x + (cellW - w) / 2) : (innerW - w) / 2; const y = showGrid ? (defaultPosForIndex(i).y + (cellH - h) / 2) : (innerH - h) / 2; const p = snapPos({ x, y }); out[i] = showGrid ? clampPosToCell(i, p) : clampPos(i, p) } return out })
-                } else if (selectedIdx != null) {
-                  const { innerW, innerH, cellW, cellH } = metrics(); const { w, h } = nodeSizeMM(selectedIdx); const x = showGrid ? (defaultPosForIndex(selectedIdx).x + (cellW - w) / 2) : (innerW - w) / 2; const y = showGrid ? (defaultPosForIndex(selectedIdx).y + (cellH - h) / 2) : (innerH - h) / 2; const p = snapPos({ x, y }); setPosOverrides((prev) => ({ ...prev, [selectedIdx]: showGrid ? clampPosToCell(selectedIdx, p) : clampPos(selectedIdx, p) }))
-                }
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#94a3b8" />
-                  <path d="M12 4v16M4 12h16M8 8h8M8 16h8" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
           </div>
         </div>
         </div>
@@ -328,7 +289,7 @@ export default function LabelsTab({
         {!!marqueeRect && (
           <div className="selection-marquee" style={{ left: marqueeRect.x, top: marqueeRect.y, width: marqueeRect.w, height: marqueeRect.h }} />
         )}
-        <div ref={contentRef} style={{ transform: `scale(${sheetZoom})`, transformOrigin: '0 0' }}>
+        <div ref={contentRef} className="print-content" style={{ transform: `scale(${sheetZoom})`, transformOrigin: '0 0' }}>
           {renderLabelPages()}
         </div>
       </div>
