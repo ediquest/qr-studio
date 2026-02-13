@@ -38,6 +38,8 @@ export default function BarcodeStudio() {
     genPreviewUrl,
     pngMul,
     setPngMul,
+    downloadWhiteBg,
+    setDownloadWhiteBg,
     gs1Report,
   } = useGeneratorState({ t, toSvg, makeBitmap })
 
@@ -578,6 +580,8 @@ export default function BarcodeStudio() {
           addCurrentToLabels={addCurrentToLabels}
           pngMul={pngMul}
           setPngMul={setPngMul}
+          downloadWhiteBg={downloadWhiteBg}
+          setDownloadWhiteBg={setDownloadWhiteBg}
           makeBitmap={makeBitmap}
           toSvg={toSvg}
           genPreviewUrl={genPreviewUrl}

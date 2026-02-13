@@ -69,6 +69,8 @@ export default function GeneratorTab({
   addCurrentToLabels,
   pngMul,
   setPngMul,
+  downloadWhiteBg,
+  setDownloadWhiteBg,
   makeBitmap,
   toSvg,
   genPreviewUrl,
@@ -81,6 +83,7 @@ export default function GeneratorTab({
     try {
       const base = (Number(scale) || 3) * (Number(pngMul) || 1)
       const opts = { bcid, text, rotate }
+      if (downloadWhiteBg) opts.backgroundcolor = 'FFFFFF'
       if (is2d) {
         opts.scaleX = base
         opts.scaleY = base
@@ -107,6 +110,7 @@ export default function GeneratorTab({
     try {
       const base = Number(scale) || 3
       const opts = { bcid, text, rotate }
+      if (downloadWhiteBg) opts.backgroundcolor = 'FFFFFF'
       if (is2d) {
         opts.scaleX = base
         opts.scaleY = base
@@ -116,6 +120,7 @@ export default function GeneratorTab({
         if (includeText) {
           opts.includetext = true
           opts.textxalign = 'center'
+          opts.textfont = hrtFont
         }
       }
       const svg = toSvg(opts)
@@ -194,15 +199,13 @@ export default function GeneratorTab({
           </label>
           <label className="hstack small">{t('generator.hrtFont')}
             <select className="select" value={hrtFont} disabled={is2d || !includeText} onChange={(e) => setHrtFont(e.target.value)}>
-              <option value="Helvetica">Helvetica</option>
-              <option value="Courier">Courier</option>
-              <option value="Times-Roman">Times-Roman</option>
-              <option value="Times-Bold">Times-Bold</option>
               <option value="OCR-A">OCR-A</option>
               <option value="OCR-B">OCR-B</option>
             </select>
           </label>
-          <button className="button" onClick={addCurrentToLabels}>{t('generator.addToSheet')}</button>
+          <button className="button" onClick={addCurrentToLabels}>
+            {t('generator.addToSheet')}
+          </button>
         </Toolbar>
       </div>
 
@@ -222,6 +225,14 @@ export default function GeneratorTab({
               style={{ width: 100, marginLeft: 6 }}
               onValue={(v) => setPngMul(Math.max(1, Math.min(10, parseInt(String(v || 1), 10))))}
             />
+          </label>
+          <label className="hstack small">
+            <input
+              type="checkbox"
+              checked={downloadWhiteBg}
+              onChange={(e) => setDownloadWhiteBg(e.target.checked)}
+            />
+            {t('generator.whiteBackground')}
           </label>
 
           <button className="button" onClick={downloadPng}>

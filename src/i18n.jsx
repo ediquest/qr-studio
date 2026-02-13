@@ -30,6 +30,7 @@ export const TRANSLATIONS = {
       placeholder2d: 'Tekst/URL/GS1 (np. (01)(10) ...)',
       placeholder1d: 'Ci\u0105g zgodny ze standardem',
       heightBars: 'S\u0142upki w px',
+      whiteBackground: 'Bia\u0142e t\u0142o',
     },
     batch: {
       title: 'Batch - wklej list\u0119 lub wczytaj CSV',
@@ -166,6 +167,7 @@ export const TRANSLATIONS = {
       placeholder2d: 'Text/URL/GS1 (e.g., (01)(10) ...)',
       placeholder1d: 'String matching the symbology rules',
       heightBars: 'Bars height (px)',
+      whiteBackground: 'White background',
     },
     batch: {
       title: 'Batch - paste list or load CSV',

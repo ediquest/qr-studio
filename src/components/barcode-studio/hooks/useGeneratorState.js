@@ -2,6 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { validateGs1 } from '../../../utils/gs1.js'
 import { TWO_D_SET } from '../../../utils/barcodeRender.js'
 
+const SUPPORTED_HRT_FONTS = new Set(['OCR-A', 'OCR-B'])
+
+function normalizeHrtFont(value) {
+  const v = String(value || '').trim().toUpperCase()
+  return SUPPORTED_HRT_FONTS.has(v) ? v : 'OCR-B'
+}
+
 function normalizeInput(bcid, value) {
   let v = (value || '').toString().trim()
   if (['ean13', 'ean8', 'itf14'].some((x) => bcid.startsWith(x))) {
@@ -62,11 +69,12 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
   const [scale, setScale] = useState(4)
   const [height, setHeight] = useState(50)
   const [includeText, setIncludeText] = useState(true)
-  const [hrtFont, setHrtFont] = useState('Helvetica')
+  const [hrtFont, setHrtFont] = useState('OCR-B')
   const [rotate, setRotate] = useState(0)
   const [error, setError] = useState('')
   const [genPreviewUrl, setGenPreviewUrl] = useState('')
   const [pngMul, setPngMul] = useState(4)
+  const [downloadWhiteBg, setDownloadWhiteBg] = useState(true)
 
   useEffect(() => {
     try {
@@ -78,12 +86,14 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
         setHeight(+saved.height || 50)
         setIncludeText(!!saved.includeText)
         setRotate(+saved.rotate || 0)
-        if (saved.hrtFont) setHrtFont(saved.hrtFont)
+        if (saved.hrtFont) setHrtFont(normalizeHrtFont(saved.hrtFont))
       }
       const u = localStorage.getItem('rbs_gen_url')
       if (u) setGenPreviewUrl(u)
       const pm = parseInt(localStorage.getItem('rbs_pngmul') || '4', 10)
       if (!Number.isNaN(pm)) setPngMul(pm)
+      const bg = localStorage.getItem('rbs_whitebg')
+      if (bg != null) setDownloadWhiteBg(bg === '1')
     } catch (_) {
       // ignore invalid localStorage values
     }
@@ -107,6 +117,14 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
 
   useEffect(() => {
     try {
+      localStorage.setItem('rbs_whitebg', downloadWhiteBg ? '1' : '0')
+    } catch (_) {
+      // ignore storage errors
+    }
+  }, [downloadWhiteBg])
+
+  useEffect(() => {
+    try {
       const opts = { bcid, text: normalizeInput(bcid, text || ''), rotate }
       const base = Number(scale) || 3
       if (TWO_D_SET.has(bcid)) {
@@ -118,6 +136,7 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
         if (includeText) {
           opts.includetext = true
           opts.textxalign = 'center'
+          opts.textfont = hrtFont
         }
       }
       try {
@@ -135,7 +154,7 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
     } catch (e) {
       setError(cleanBwipError(e, t))
     }
-  }, [bcid, text, scale, height, includeText, rotate, toSvg, makeBitmap, t])
+  }, [bcid, text, scale, height, includeText, hrtFont, rotate, toSvg, makeBitmap, t])
 
   const gs1Report = useMemo(() => {
     if (bcid !== 'gs1-128' && bcid !== 'qrcode' && bcid !== 'datamatrix') return null
@@ -162,6 +181,8 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
     genPreviewUrl,
     pngMul,
     setPngMul,
+    downloadWhiteBg,
+    setDownloadWhiteBg,
     gs1Report,
   }
 }

@@ -135,6 +135,7 @@ export default function BatchTab({
 
   const processTextFile = async (file) => {
     const text = await file.text()
+    setBatchInput(text)
     setBatchRows(parseLines(text))
   }
 
