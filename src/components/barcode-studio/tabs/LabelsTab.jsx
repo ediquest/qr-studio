@@ -1,4 +1,4 @@
-﻿import React from 'react'
+import React from 'react'
 import Field from '../ui/Field.jsx'
 
 export default function LabelsTab({

@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { jsPDF } from 'jspdf'
-import { parseLines, parseCsv, generateSequence, detectNumericRun } from '../utils/batch.js'
+import { parseLines, parseCsv } from '../utils/batch.js'
 import { PRESETS } from '../utils/layouts.js'
 import { TWO_D_SET, fitRect, getImageSize, getSvgSize, hasToSVG, makeBitmap, resolveBcid, toSvg } from '../utils/barcodeRender.js'
 import { useI18n } from '../i18n.jsx'
@@ -45,13 +45,6 @@ export default function BarcodeStudio() {
   const [batchInput, setBatchInput] = useState('')
   const [batchRows, setBatchRows] = useState([])
   const [batchBcid, setBatchBcid] = useState('code128')
-  const [seqPattern, setSeqPattern] = useState('DOCK.001')
-  const [seqCount, setSeqCount] = useState(10)
-  const [seqStep, setSeqStep] = useState(1)
-  const det = detectNumericRun(seqPattern)
-  const [seqStart, setSeqStart] = useState(det ? det.start : 1)
-  const [seqPad, setSeqPad] = useState(det ? det.width : 3)
-  useEffect(()=>{ const d=detectNumericRun(seqPattern); if(d){ setSeqStart(d.start); setSeqPad(d.width) } }, [seqPattern])
 
   // labels & layout
   const {
@@ -292,9 +285,9 @@ export default function BarcodeStudio() {
   
   function cleanBwipError(err){
     const raw = (err && (err.message || err) || '') + '';
-    // strip engine prefixes e.g. "bwipp.ean13badLength#4907:" or "bwip-js.ean13badLength:" and "Error:"/"Błąd:"
+    // strip engine prefixes e.g. "bwipp.ean13badLength#4907:" or "bwip-js.ean13badLength:" and "Error:"/"BĹ‚Ä…d:"
     let s = raw
-      .replace(/^(?:Błąd|Blad|Error)\s*:\s*/i,'')
+      .replace(/^(?:BĹ‚Ä…d|Blad|Error)\s*:\s*/i,'')
       .replace(/(?:bwipp|bwip-js)[.:][\w-]+(?:#\d+)?:\s*/ig,'')
       .replace(/\s+at\s+[\s\S]*$/,'') // drop stack
       .trim();
@@ -308,8 +301,8 @@ export default function BarcodeStudio() {
       'upcabadlength':  t('errors.upcabadlength'),
       'upcebadlength':  t('errors.upcebadlength'),
       'itf14badlength': t('errors.itf14badlength'),
-      'isbn10badlength': 'ISBN-10 musi mieć 9 lub 10 cyfr (bez myślników)',
-      'isbn13badlength': 'ISBN-13 musi mieć 12 lub 13 cyfr (bez myślników)',
+      'isbn10badlength': 'ISBN-10 musi mieÄ‡ 9 lub 10 cyfr (bez myĹ›lnikĂłw)',
+      'isbn13badlength': 'ISBN-13 musi mieÄ‡ 12 lub 13 cyfr (bez myĹ›lnikĂłw)',
       'code39badcharacter': t('errors.code39badcharacter'),
       'code128badcharacter': t('errors.code128badcharacter'),
       'itfbadcharacter':    'ITF (Interleaved 2 of 5) akceptuje tylko cyfry',
@@ -327,13 +320,13 @@ export default function BarcodeStudio() {
 
     if (!s) s = t('errors.fallback');
 
-    // Heurystyczne tłumaczenie popularnych zwrotów
-    s = s.replace(/\bmust be\b/gi,'musi mieć')
-         .replace(/\bshould be\b/gi,'powinno mieć')
+    // Heurystyczne tĹ‚umaczenie popularnych zwrotĂłw
+    s = s.replace(/\bmust be\b/gi,'musi mieÄ‡')
+         .replace(/\bshould be\b/gi,'powinno mieÄ‡')
          .replace(/\bdigits?\b/gi,'cyfr')
-         .replace(/\binvalid\b/gi,'nieprawidłowy')
-         .replace(/\btoo long\b/gi,'za długi')
-         .replace(/\btoo short\b/gi,'za krótki')
+         .replace(/\binvalid\b/gi,'nieprawidĹ‚owy')
+         .replace(/\btoo long\b/gi,'za dĹ‚ugi')
+         .replace(/\btoo short\b/gi,'za krĂłtki')
          .replace(/[.:\s]+$/,'')
          .trim();
     return s;
@@ -372,11 +365,11 @@ export default function BarcodeStudio() {
                         return (
                           <div className="barcode-wrap" style={{position:'relative', width:wrapW, height:wrapH, display:'flex', alignItems:'center', justifyContent:'center'}}>
                             <img src={imgSrc} alt="barcode" draggable={false} style={{maxWidth:'100%',maxHeight:'100%', pointerEvents:'none'}} />
-                            {editMode && (<div title="Skaluj proporcjonalnie" data-resize="1" onPointerDown={(e)=>startResize(e, idx, 'both')} style={{position:'absolute', right:2, bottom:2, width:16, height:16, border:'1px solid #475569', background:'#e2e8f0', borderRadius:4, cursor:'nwse-resize', display:'grid', placeItems:'center', fontSize:10, color:'#334155', zIndex:2}}>◢</div>)}
+                            {editMode && (<div title="Skaluj proporcjonalnie" data-resize="1" onPointerDown={(e)=>startResize(e, idx, 'both')} style={{position:'absolute', right:2, bottom:2, width:16, height:16, border:'1px solid #475569', background:'#e2e8f0', borderRadius:4, cursor:'nwse-resize', display:'grid', placeItems:'center', fontSize:10, color:'#334155', zIndex:2}}>â—˘</div>)}
                           </div>
                         )
                       }
-                      return (imgSrc==='ERROR' ? <span className="small" style={{color:'#b91c1c'}}>błąd</span> : <span className="small">pusta</span>)
+                      return (imgSrc==='ERROR' ? <span className="small" style={{color:'#b91c1c'}}>bĹ‚Ä…d</span> : <span className="small">pusta</span>)
                     })()}
                   </div>
                 )
@@ -411,9 +404,9 @@ export default function BarcodeStudio() {
                     {imgSrc && imgSrc!=='ERROR' ? (
                       <div className="barcode-wrap" style={{position:'relative', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center'}}>
                         <img src={imgSrc} alt="barcode" draggable={false} style={{maxWidth:'100%',maxHeight:'100%', pointerEvents:'none'}} />
-                        {editMode && (<div title="Skaluj proporcjonalnie" data-resize="1" onPointerDown={(e)=>startResize(e, idx, 'both')} style={{position:'absolute', right:2, bottom:2, width:16, height:16, border:'1px solid #475569', background:'#e2e8f0', borderRadius:4, cursor:'nwse-resize', display:'grid', placeItems:'center', fontSize:10, color:'#334155', zIndex:2}}>◢</div>)}
+                        {editMode && (<div title="Skaluj proporcjonalnie" data-resize="1" onPointerDown={(e)=>startResize(e, idx, 'both')} style={{position:'absolute', right:2, bottom:2, width:16, height:16, border:'1px solid #475569', background:'#e2e8f0', borderRadius:4, cursor:'nwse-resize', display:'grid', placeItems:'center', fontSize:10, color:'#334155', zIndex:2}}>â—˘</div>)}
                       </div>
-                    ) : (imgSrc==='ERROR' ? <span className="small" style={{color:'#b91c1c'}}>błąd</span> : <span className="small">pusta</span>)}
+                    ) : (imgSrc==='ERROR' ? <span className="small" style={{color:'#b91c1c'}}>bĹ‚Ä…d</span> : <span className="small">pusta</span>)}
                   </div>
                 )
               })}
@@ -510,7 +503,7 @@ export default function BarcodeStudio() {
           x = padMM + pos.x; y = padMM + pos.y;
         }
 
-        // Prefer vector SVG when available – keeps edges and text crisp
+        // Prefer vector SVG when available â€“ keeps edges and text crisp
         let usedVector = false;
         if (hasToSVG() && typeof window.svg2pdf === 'function') {
           try {
@@ -531,7 +524,7 @@ export default function BarcodeStudio() {
         }
 
         if (!usedVector) {
-          // High‑DPI bitmap fallback to keep HRT sharp
+          // Highâ€‘DPI bitmap fallback to keep HRT sharp
           const base = ((Number(item.scale)||3) * (Number(pageScale)||1)) * dpiMul;
           const opts = { bcid: resolveBcid(item.bcid), text:item.text, rotate:pageRotate||0 };
           if (TWO_D_SET.has(item.bcid)) { opts.scaleX=base; opts.scaleY=base; }
@@ -550,7 +543,7 @@ export default function BarcodeStudio() {
 
     pdf.save('labels.pdf');
   } catch(e) {
-    alert('Błąd eksportu PDF: '+(e?.message||e));
+    alert('BĹ‚Ä…d eksportu PDF: '+(e?.message||e));
   }
 }
   return (
@@ -599,7 +592,6 @@ export default function BarcodeStudio() {
           popularCodeIds={POPULAR_CODE_IDS}
           parseCsv={parseCsv}
           parseLines={parseLines}
-          generateSequence={generateSequence}
           batchInput={batchInput}
           setBatchInput={setBatchInput}
           batchRows={batchRows}
@@ -607,16 +599,6 @@ export default function BarcodeStudio() {
           batchBcid={batchBcid}
           setBatchBcid={setBatchBcid}
           addAllFromBatch={addAllFromBatch}
-          seqPattern={seqPattern}
-          setSeqPattern={setSeqPattern}
-          seqCount={seqCount}
-          setSeqCount={setSeqCount}
-          seqStep={seqStep}
-          setSeqStep={setSeqStep}
-          seqStart={seqStart}
-          setSeqStart={setSeqStart}
-          seqPad={seqPad}
-          setSeqPad={setSeqPad}
           setLabels={setLabels}
           setTab={setTab}
           scale={scale}
