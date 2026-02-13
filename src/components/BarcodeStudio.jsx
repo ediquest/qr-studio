@@ -9,8 +9,10 @@ import useLabelsLayoutState from './barcode-studio/hooks/useLabelsLayoutState.js
 import GeneratorTab from './barcode-studio/tabs/GeneratorTab.jsx'
 import BatchTab from './barcode-studio/tabs/BatchTab.jsx'
 import LabelsTab from './barcode-studio/tabs/LabelsTab.jsx'
+import MySheetsTab from './barcode-studio/tabs/MySheetsTab.jsx'
 
 const POPULAR_CODE_IDS = ['qrcode','code128','ean13','ean8','itf14','gs1-128','datamatrix','azteccode','pdf417'];
+const SAVED_SHEETS_KEY = 'rbs_saved_sheets_v1'
 
 export default function BarcodeStudio() {
   const rootRef = useRef(null)
@@ -21,6 +23,9 @@ export default function BarcodeStudio() {
   const [selectedIds, setSelectedIds] = useState([])
   const [marqueeRect, setMarqueeRect] = useState(null)
   const [previewRatios, setPreviewRatios] = useState({})
+  const [savedSheets, setSavedSheets] = useState([])
+  const [sheetModal, setSheetModal] = useState({ open:false, mode:'create', id:null, name:'' })
+  const [deleteSheetModal, setDeleteSheetModal] = useState({ open:false, id:null, name:'' })
   const previewCacheRef = useRef(new Map())
   const { t, lang } = useI18n()
 
@@ -129,6 +134,129 @@ export default function BarcodeStudio() {
   } = useLabelsLayoutState({ presets: PRESETS })
 
   function notify(msg){ setToast(msg); setTimeout(()=>setToast(''), 1400) }
+  function deepClone(value){
+    try { return JSON.parse(JSON.stringify(value)) } catch(_) { return value }
+  }
+  function defaultSheetName(){
+    const d = new Date()
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const hh = String(d.getHours()).padStart(2, '0')
+    const mm = String(d.getMinutes()).padStart(2, '0')
+    return `${t('sheets.defaultName')} ${y}-${m}-${day} ${hh}:${mm}`
+  }
+  function buildSheetSnapshot(){
+    return deepClone({
+      labels,
+      skip,
+      showGrid,
+      showCutLines,
+      cutLineWeight,
+      cutLineStyle,
+      freeLayout,
+      presetKey,
+      cols,
+      rows,
+      pageW,
+      pageH,
+      gapMM,
+      padMM,
+      pageRotate,
+      pageScale,
+      sizeOverrides,
+      posOverrides,
+      globalMulX,
+      globalMulY,
+      lockAspect,
+      snapMM,
+    })
+  }
+  function applySheetSnapshot(snapshot){
+    if (!snapshot || typeof snapshot !== 'object') return
+    setLabels(Array.isArray(snapshot.labels) ? snapshot.labels : [])
+    setSkip(Number.isFinite(+snapshot.skip) ? +snapshot.skip : 0)
+    setShowGrid(snapshot.showGrid !== false)
+    setShowCutLines(!!snapshot.showCutLines)
+    setCutLineWeight(['thin','standard','thick'].includes(snapshot.cutLineWeight) ? snapshot.cutLineWeight : 'standard')
+    setCutLineStyle(['solid','dashed'].includes(snapshot.cutLineStyle) ? snapshot.cutLineStyle : 'solid')
+    setFreeLayout(!!snapshot.freeLayout)
+    if (snapshot.presetKey) setPresetKey(snapshot.presetKey)
+    setCols(Math.max(1, parseInt(snapshot.cols || String(cols), 10) || cols))
+    setRows(Math.max(1, parseInt(snapshot.rows || String(rows), 10) || rows))
+    setPageW(Number.isFinite(+snapshot.pageW) ? +snapshot.pageW : pageW)
+    setPageH(Number.isFinite(+snapshot.pageH) ? +snapshot.pageH : pageH)
+    setGapMM(Number.isFinite(+snapshot.gapMM) ? +snapshot.gapMM : gapMM)
+    setPadMM(Number.isFinite(+snapshot.padMM) ? +snapshot.padMM : padMM)
+    setPageRotate([0,90,180,270].includes(snapshot.pageRotate) ? snapshot.pageRotate : 0)
+    setPageScale(Number.isFinite(+snapshot.pageScale) ? +snapshot.pageScale : 1)
+    setSizeOverrides(snapshot.sizeOverrides && typeof snapshot.sizeOverrides === 'object' ? snapshot.sizeOverrides : {})
+    setPosOverrides(snapshot.posOverrides && typeof snapshot.posOverrides === 'object' ? snapshot.posOverrides : {})
+    setGlobalMulX(Number.isFinite(+snapshot.globalMulX) ? +snapshot.globalMulX : 1)
+    setGlobalMulY(Number.isFinite(+snapshot.globalMulY) ? +snapshot.globalMulY : 1)
+    setLockAspect(!!snapshot.lockAspect)
+    setSnapMM(Number.isFinite(+snapshot.snapMM) ? +snapshot.snapMM : 0)
+    setSelectedIds([])
+    setSelectedIdx(null)
+    setEditAll(false)
+  }
+  function openSaveSheetModal(){
+    if (!labels.length) { notify(t('sheets.nothingToSave')); return }
+    setSheetModal({ open:true, mode:'create', id:null, name:defaultSheetName() })
+  }
+  function openRenameSheetModal(id){
+    const item = savedSheets.find((s) => s.id === id)
+    if (!item) return
+    setSheetModal({ open:true, mode:'rename', id, name:item.name || '' })
+  }
+  function closeSheetModal(){
+    setSheetModal({ open:false, mode:'create', id:null, name:'' })
+  }
+  function submitSheetModal(){
+    const name = String(sheetModal.name || '').trim()
+    if (!name) return
+    const now = Date.now()
+    if (sheetModal.mode === 'rename' && sheetModal.id) {
+      setSavedSheets((prev) => prev.map((s) => s.id === sheetModal.id ? { ...s, name, updatedAt: now } : s))
+      notify(t('sheets.renamed'))
+      closeSheetModal()
+      return
+    }
+    const project = {
+      id: String(now) + '-' + Math.random().toString(36).slice(2, 8),
+      name,
+      createdAt: now,
+      updatedAt: now,
+      snapshot: buildSheetSnapshot(),
+    }
+    setSavedSheets((prev) => [project, ...prev].slice(0, 120))
+    notify(t('sheets.saved'))
+    closeSheetModal()
+  }
+  function loadSavedSheet(id){
+    const item = savedSheets.find((s) => s.id === id)
+    if (!item?.snapshot) return
+    applySheetSnapshot(item.snapshot)
+    setTab('labels')
+    notify(t('sheets.loaded'))
+  }
+  function deleteSavedSheet(id){
+    setSavedSheets((prev) => prev.filter((s) => s.id !== id))
+    notify(t('sheets.deleted'))
+  }
+  function openDeleteSheetModal(id){
+    const item = savedSheets.find((s) => s.id === id)
+    if (!item) return
+    setDeleteSheetModal({ open:true, id, name:item.name || t('sheets.untitled') })
+  }
+  function closeDeleteSheetModal(){
+    setDeleteSheetModal({ open:false, id:null, name:'' })
+  }
+  function confirmDeleteSheet(){
+    if (!deleteSheetModal.id) return
+    deleteSavedSheet(deleteSheetModal.id)
+    closeDeleteSheetModal()
+  }
   function resolvedCustomCaptionText(item){
     if (!item?.customCaptionEnabled) return ''
     const raw = String(item?.customCaptionText || '').trim()
@@ -176,6 +304,24 @@ export default function BarcodeStudio() {
     })
     return out
   }
+  function remapIndexedObjectAfterBulk(prev, removedSet){
+    const out = {}
+    const removedSorted = Array.from(removedSet).sort((a, b) => a - b)
+    const shiftFor = (idx) => {
+      let s = 0
+      for (let i = 0; i < removedSorted.length; i++) {
+        if (removedSorted[i] < idx) s++
+        else break
+      }
+      return s
+    }
+    Object.entries(prev || {}).forEach(([k, v]) => {
+      const i = parseInt(k, 10)
+      if (!(i >= 0) || removedSet.has(i)) return
+      out[i - shiftFor(i)] = v
+    })
+    return out
+  }
   function removeLabelAt(idx){
     if (!(idx >= 0 && idx < labels.length)) return
     setLabels((prev) => prev.filter((_, i) => i !== idx))
@@ -184,6 +330,18 @@ export default function BarcodeStudio() {
     setPreviewRatios((prev) => remapIndexedObject(prev, idx))
     setSelectedIds((prev) => prev.filter((i) => i !== idx).map((i) => (i > idx ? i - 1 : i)).sort((a,b)=>a-b))
     notify(t('labels.deletedOne'))
+  }
+  function removeSelectedLabels(ids = selectedIds){
+    const valid = Array.from(new Set((ids || []).filter((i) => i >= 0 && i < labels.length))).sort((a, b) => a - b)
+    if (!valid.length) return
+    const removedSet = new Set(valid)
+    setLabels((prev) => prev.filter((_, i) => !removedSet.has(i)))
+    setSizeOverrides((prev) => remapIndexedObjectAfterBulk(prev, removedSet))
+    setPosOverrides((prev) => remapIndexedObjectAfterBulk(prev, removedSet))
+    setPreviewRatios((prev) => remapIndexedObjectAfterBulk(prev, removedSet))
+    setSelectedIds([])
+    setSelectedIdx(null)
+    notify(t('labels.deletedMany', { count: valid.length }))
   }
   function cellCoordsForLabel(idx){
     const global = skip + idx
@@ -348,6 +506,33 @@ export default function BarcodeStudio() {
   useEffect(() => {
     setSelectedIds((prev) => prev.filter((i) => i >= 0 && i < labels.length))
   }, [labels.length])
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SAVED_SHEETS_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) return
+      setSavedSheets(parsed.filter((x) => x && typeof x === 'object' && x.id && x.snapshot))
+    } catch (_) {}
+  }, [])
+  useEffect(() => {
+    try { localStorage.setItem(SAVED_SHEETS_KEY, JSON.stringify(savedSheets)) } catch (_) {}
+  }, [savedSheets])
+  useEffect(() => {
+    if (!sheetModal.open && !deleteSheetModal.open) return
+    const onKey = (ev) => {
+      if (ev.key === 'Escape') {
+        if (sheetModal.open) closeSheetModal()
+        if (deleteSheetModal.open) closeDeleteSheetModal()
+      }
+      if (ev.key === 'Enter') {
+        if (sheetModal.open) submitSheetModal()
+        if (deleteSheetModal.open) confirmDeleteSheet()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [sheetModal.open, sheetModal.name, sheetModal.mode, sheetModal.id, deleteSheetModal.open, deleteSheetModal.id, savedSheets])
 
   useEffect(() => {
     setLabels((prev) => {
@@ -1224,16 +1409,37 @@ export default function BarcodeStudio() {
     window.addEventListener('pointerdown', onPointerDownOutside, true)
     return () => window.removeEventListener('pointerdown', onPointerDownOutside, true)
   }, [tab, selectedCount, editAll])
+  useEffect(() => {
+    const isEditable = (el) => {
+      if (!(el instanceof HTMLElement)) return false
+      return !!el.closest('input, textarea, select, [contenteditable="true"]')
+    }
+    const onKeyDown = (ev) => {
+      if (ev.key !== 'Delete') return
+      if (tab !== 'labels' || !editMode) return
+      if (!selectedIds.length) return
+      if (isEditable(ev.target)) return
+      ev.preventDefault()
+      ev.stopPropagation()
+      removeSelectedLabels(selectedIds)
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
+  }, [tab, editMode, selectedIds, labels.length])
 
   return (
     <div ref={rootRef} className="container" onWheelCapture={onNumberWheelCapture}>
       <style>{`@media print { @page { size: ${pageW}mm ${pageH}mm; margin: 0; } }`}</style>
-      <div className="tabs no-print">
+      <div className="tabs no-print tabs-main">
         {['generator','batch','labels'].map(tabKey => (
           <div key={tabKey} className={'tab '+(tab===tabKey?'active':'')} onClick={()=>setTab(tabKey)}>
             {tabKey==='generator'?t('app.tabs.generator'):tabKey==='batch'?t('app.tabs.batch'):t('app.tabs.labels')}
           </div>
         ))}
+        <div className="tabs-spacer"></div>
+        <div className={'tab '+(tab==='mySheets'?'active':'')} onClick={()=>setTab('mySheets')}>
+          {t('app.tabs.mySheets')}
+        </div>
       </div>
 
       {tab==='generator' && (
@@ -1321,7 +1527,7 @@ export default function BarcodeStudio() {
             actions={{
               setLabels, notify, onToggleEditAll, defaultPosForIndex, clampPos, snapPos, setPosOverrides,
               clampPosToCell, setZoomCentered, exportPdf, resetLayoutDefaults, clearLabels, metrics,
-              nodeSizeMM, renderLabelPages, onSheetPointerDownCapture, marqueeRect,
+              nodeSizeMM, renderLabelPages, onSheetPointerDownCapture, marqueeRect, openSaveSheetModal,
             }}
           />
           <div className={'selection-drawer no-print ' + ((selectedCount>0 || editAll) ? 'open' : '')}>
@@ -1394,6 +1600,50 @@ export default function BarcodeStudio() {
           </div>
         </>
       )}
+      {tab==='mySheets' && (
+        <MySheetsTab
+          t={t}
+          sheets={savedSheets}
+          onOpen={loadSavedSheet}
+          onRename={openRenameSheetModal}
+          onDelete={openDeleteSheetModal}
+        />
+      )}
+      {sheetModal.open ? (
+        <div className="modal-backdrop no-print" onClick={closeSheetModal}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="vstack" style={{ gap: 10 }}>
+              <strong>{sheetModal.mode === 'rename' ? t('sheets.renameTitle') : t('sheets.saveTitle')}</strong>
+              <input
+                className="input"
+                type="text"
+                value={sheetModal.name}
+                onChange={(e) => setSheetModal((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder={t('sheets.namePlaceholder')}
+                autoFocus
+              />
+              <div className="hstack" style={{ justifyContent: 'flex-end' }}>
+                <button className="button" onClick={closeSheetModal}>{t('sheets.cancel')}</button>
+                <button className="button primary" onClick={submitSheetModal} disabled={!String(sheetModal.name || '').trim()}>{t('sheets.confirm')}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {deleteSheetModal.open ? (
+        <div className="modal-backdrop no-print" onClick={closeDeleteSheetModal}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="vstack" style={{ gap: 10 }}>
+              <strong>{t('sheets.deleteTitle')}</strong>
+              <div className="small">{t('sheets.deleteQuestion', { name: deleteSheetModal.name })}</div>
+              <div className="hstack" style={{ justifyContent: 'flex-end' }}>
+                <button className="button" onClick={closeDeleteSheetModal}>{t('sheets.cancel')}</button>
+                <button className="button primary" onClick={confirmDeleteSheet}>{t('sheets.deleteConfirm')}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {!!toast && <div className="toast">{toast}</div>}
     </div>

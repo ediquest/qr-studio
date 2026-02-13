@@ -47,7 +47,6 @@ export default function LabelsTab({
       window.removeEventListener('blur', onBlur)
     }
   }, [])
-
   const {
     presetKey, setPresetKey, pageW, setPageW, pageH, setPageH, cols, setCols, rows, setRows,
     selectedIdx, padMM, setPadMM,
@@ -59,17 +58,45 @@ export default function LabelsTab({
   const {
     setLabels, notify, defaultPosForIndex, clampPos, snapPos, setPosOverrides,
     clampPosToCell, setZoomCentered, exportPdf, resetLayoutDefaults, clearLabels, metrics, nodeSizeMM,
-    renderLabelPages, onSheetPointerDownCapture, marqueeRect,
+    renderLabelPages, onSheetPointerDownCapture, marqueeRect, openSaveSheetModal,
   } = actions
+  useEffect(() => {
+    const vp = viewportRef.current
+    if (!vp) return
+    const onWheelNative = (ev) => {
+      if (ev.ctrlKey || ev.metaKey) {
+        ev.preventDefault()
+        const d = ev.deltaY > 0 ? -0.1 : 0.1
+        const next = Math.max(0.5, Math.min(3, +((sheetZoom + d).toFixed(2))))
+        setZoomCentered(next)
+        return
+      }
+      const maxTop = Math.max(0, (vp.scrollHeight * sheetZoom) - vp.clientHeight)
+      const maxLeft = Math.max(0, (vp.scrollWidth * sheetZoom) - vp.clientWidth)
+      const atTop = vp.scrollTop <= 0
+      const atBottom = vp.scrollTop >= maxTop - 1
+      const atLeft = vp.scrollLeft <= 0
+      const atRight = vp.scrollLeft >= maxLeft - 1
+      if ((ev.deltaY < 0 && atTop) || (ev.deltaY > 0 && atBottom) || (ev.deltaX < 0 && atLeft) || (ev.deltaX > 0 && atRight)) {
+        ev.preventDefault()
+        ev.stopPropagation()
+      }
+    }
+    vp.addEventListener('wheel', onWheelNative, { passive: false })
+    return () => vp.removeEventListener('wheel', onWheelNative)
+  }, [viewportRef, sheetZoom, setZoomCentered])
 
   return (
     <div className="vstack">
       <div className="card vstack no-print">
         <div className="hstack" style={{ justifyContent: 'space-between' }}>
           <div className="small">{settingsCollapsed ? t('labels.settingsHidden') : t('labels.gridTitle')}</div>
-          <button className="button" onClick={() => setSettingsCollapsed((v) => !v)}>
-            {settingsCollapsed ? t('labels.showSettings') : t('labels.hideSettings')}
-          </button>
+          <div className="hstack" style={{ gap: 8 }}>
+            <button className="button" onClick={openSaveSheetModal}>{t('sheets.saveCurrent')}</button>
+            <button className="button" onClick={() => setSettingsCollapsed((v) => !v)}>
+              {settingsCollapsed ? t('labels.showSettings') : t('labels.hideSettings')}
+            </button>
+          </div>
         </div>
         {!settingsCollapsed ? (
         <div className="hstack" style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -231,6 +258,7 @@ export default function LabelsTab({
             {t('labels.zoom')}: {Math.round(sheetZoom * 100)}%
             <input className="input" type="range" min="50" max="300" step="10" value={Math.round(sheetZoom * 100)} onChange={(e) => setZoomCentered(parseInt(e.target.value, 10) / 100)} style={{ width: 140 }} />
           </div>
+          <button className="button" onClick={openSaveSheetModal}>{t('sheets.saveCurrent')}</button>
           <button className="button primary" onClick={exportPdf}>{t('labels.exportPdf')}</button>
         </div>
         )}
@@ -260,25 +288,6 @@ export default function LabelsTab({
       }} onPointerCancel={() => {
         panRef.current.active = false
         setPanActive(false)
-      }} onWheel={(e) => {
-        if (e.ctrlKey || e.metaKey) {
-          e.preventDefault()
-          const d = e.deltaY > 0 ? -0.1 : 0.1
-          const next = Math.max(0.5, Math.min(3, +((sheetZoom + d).toFixed(2))))
-          setZoomCentered(next)
-          return
-        }
-        const vp = e.currentTarget
-        const maxTop = Math.max(0, (vp.scrollHeight * sheetZoom) - vp.clientHeight)
-        const maxLeft = Math.max(0, (vp.scrollWidth * sheetZoom) - vp.clientWidth)
-        const atTop = vp.scrollTop <= 0
-        const atBottom = vp.scrollTop >= maxTop - 1
-        const atLeft = vp.scrollLeft <= 0
-        const atRight = vp.scrollLeft >= maxLeft - 1
-        if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom) || (e.deltaX < 0 && atLeft) || (e.deltaX > 0 && atRight)) {
-          e.preventDefault()
-          e.stopPropagation()
-        }
       }} onScroll={(e) => {
         const vp = e.currentTarget
         const maxTop = Math.max(0, (vp.scrollHeight * sheetZoom) - vp.clientHeight)
