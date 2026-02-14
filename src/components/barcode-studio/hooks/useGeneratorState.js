@@ -17,10 +17,11 @@ function normalizeInput(bcid, value) {
   return v
 }
 
-function cleanBwipError(err, t) {
+function cleanBwipError(err, t, lang = 'pl') {
+  const isPl = lang === 'pl'
   const raw = ((err && (err.message || err)) || '') + ''
   let s = raw
-    .replace(/^(?:Błąd|Blad|Error)\s*:\s*/i, '')
+    .replace(/^(?:Blad|Błąd|Error)\s*:\s*/i, '')
     .replace(/(?:bwipp|bwip-js)[.:][\w-]+(?:#\d+)?:\s*/ig, '')
     .replace(/\s+at\s+[\s\S]*$/, '')
     .trim()
@@ -34,14 +35,14 @@ function cleanBwipError(err, t) {
     upcabadlength: t('errors.upcabadlength'),
     upcebadlength: t('errors.upcebadlength'),
     itf14badlength: t('errors.itf14badlength'),
-    isbn10badlength: 'ISBN-10 musi mieć 9 lub 10 cyfr (bez myślników)',
-    isbn13badlength: 'ISBN-13 musi mieć 12 lub 13 cyfr (bez myślników)',
+    isbn10badlength: isPl ? 'ISBN-10 musi miec 9 lub 10 cyfr (bez myslnikow)' : 'ISBN-10 must be 9 or 10 digits (without hyphens)',
+    isbn13badlength: isPl ? 'ISBN-13 musi miec 12 lub 13 cyfr (bez myslnikow)' : 'ISBN-13 must be 12 or 13 digits (without hyphens)',
     code39badcharacter: t('errors.code39badcharacter'),
     code128badcharacter: t('errors.code128badcharacter'),
     code11badcharacter: t('errors.code11badcharacter'),
     msibadcharacter: t('errors.msibadcharacter'),
-    itfbadcharacter: 'ITF (Interleaved 2 of 5) akceptuje tylko cyfry',
-    postnetbadcharacter: 'POSTNET akceptuje tylko cyfry',
+    itfbadcharacter: isPl ? 'ITF (Interleaved 2 of 5) akceptuje tylko cyfry' : 'ITF (Interleaved 2 of 5) accepts digits only',
+    postnetbadcharacter: isPl ? 'POSTNET akceptuje tylko cyfry' : 'POSTNET accepts digits only',
     badcheckdigit: t('errors.badcheckdigit'),
     badchecksum: t('errors.badchecksum'),
     qrcodetoolong: t('errors.toolong'),
@@ -52,21 +53,26 @@ function cleanBwipError(err, t) {
   if (code && dict[code]) return dict[code]
 
   if (/bar code text not specified/i.test(s) || /text not specified/i.test(s)) return t('generator.errorNoText')
+  if (isPl && /(?:the message is )?too long/i.test(s)) return t('errors.toolong')
   if (!s) s = t('errors.fallback')
 
-  s = s.replace(/\bmust be\b/gi, 'musi mieć')
-    .replace(/\bshould be\b/gi, 'powinno mieć')
-    .replace(/\bdigits?\b/gi, 'cyfr')
-    .replace(/\binvalid\b/gi, 'nieprawidłowy')
-    .replace(/\btoo long\b/gi, 'za długi')
-    .replace(/\btoo short\b/gi, 'za krótki')
-    .replace(/[.:\s]+$/, '')
-    .trim()
+  if (isPl) {
+    s = s.replace(/\bmust be\b/gi, 'musi miec')
+      .replace(/\bshould be\b/gi, 'powinno miec')
+      .replace(/\bdigits?\b/gi, 'cyfr')
+      .replace(/\binvalid\b/gi, 'nieprawidlowy')
+      .replace(/\btoo long\b/gi, 'za dlugi')
+      .replace(/\btoo short\b/gi, 'za krotki')
+      .replace(/[.:\s]+$/, '')
+      .trim()
+  } else {
+    s = s.replace(/[.:\s]+$/, '').trim()
+  }
 
   return s
 }
 
-export default function useGeneratorState({ t, toSvg, makeBitmap }) {
+export default function useGeneratorState({ t, toSvg, makeBitmap, lang = 'pl' }) {
   const [bcid, setBcid] = useState('qrcode')
   const [text, setText] = useState('Hello World!')
   const [scale, setScale] = useState(4)
@@ -171,9 +177,9 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
         setError('')
       }
     } catch (e) {
-      setError(cleanBwipError(e, t))
+      setError(cleanBwipError(e, t, lang))
     }
-  }, [bcid, text, scale, height, includeText, hrtFont, hrtSize, hrtGap, customCaptionEnabled, rotate, toSvg, makeBitmap, t])
+  }, [bcid, text, scale, height, includeText, hrtFont, hrtSize, hrtGap, customCaptionEnabled, rotate, toSvg, makeBitmap, t, lang])
 
   const gs1Report = useMemo(() => {
     if (bcid !== 'gs1-128' && bcid !== 'qrcode' && bcid !== 'datamatrix' && bcid !== 'gs1datamatrix') return null
@@ -219,3 +225,4 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
     gs1Report,
   }
 }
+

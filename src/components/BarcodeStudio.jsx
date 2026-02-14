@@ -72,7 +72,7 @@ export default function BarcodeStudio() {
     downloadWhiteBg,
     setDownloadWhiteBg,
     gs1Report,
-  } = useGeneratorState({ t, toSvg, makeBitmap })
+  } = useGeneratorState({ t, toSvg, makeBitmap, lang })
 
   // batch
   const [batchInput, setBatchInput] = useState('')
@@ -888,6 +888,7 @@ export default function BarcodeStudio() {
   
   
   function cleanBwipError(err){
+    const isPl = lang === 'pl'
     const raw = (err && (err.message || err) || '') + '';
     // strip engine prefixes e.g. "bwipp.ean13badLength#4907:" or "bwip-js.ean13badLength:" and "Error:"/"Blad:"
     let s = raw
@@ -905,14 +906,14 @@ export default function BarcodeStudio() {
       'upcabadlength':  t('errors.upcabadlength'),
       'upcebadlength':  t('errors.upcebadlength'),
       'itf14badlength': t('errors.itf14badlength'),
-      'isbn10badlength': 'ISBN-10 musi miec 9 lub 10 cyfr (bez myslnikow)',
-      'isbn13badlength': 'ISBN-13 musi miec 12 lub 13 cyfr (bez myslnikow)',
+      'isbn10badlength': isPl ? 'ISBN-10 musi miec 9 lub 10 cyfr (bez myslnikow)' : 'ISBN-10 must be 9 or 10 digits (without hyphens)',
+      'isbn13badlength': isPl ? 'ISBN-13 musi miec 12 lub 13 cyfr (bez myslnikow)' : 'ISBN-13 must be 12 or 13 digits (without hyphens)',
       'code39badcharacter': t('errors.code39badcharacter'),
       'code128badcharacter': t('errors.code128badcharacter'),
       'code11badcharacter': t('errors.code11badcharacter'),
       'msibadcharacter': t('errors.msibadcharacter'),
-      'itfbadcharacter':    'ITF (Interleaved 2 of 5) akceptuje tylko cyfry',
-      'postnetbadcharacter': 'POSTNET akceptuje tylko cyfry',
+      'itfbadcharacter':    isPl ? 'ITF (Interleaved 2 of 5) akceptuje tylko cyfry' : 'ITF (Interleaved 2 of 5) accepts digits only',
+      'postnetbadcharacter': isPl ? 'POSTNET akceptuje tylko cyfry' : 'POSTNET accepts digits only',
       'badcheckdigit': t('errors.badcheckdigit'),
       'badchecksum':   t('errors.badchecksum'),
       'qrcodetoolong': t('errors.toolong'),
@@ -924,18 +925,23 @@ export default function BarcodeStudio() {
 
     // common generic messages
     if (/bar code text not specified/i.test(s) || /text not specified/i.test(s)) return t('generator.errorNoText');
+    if (isPl && /(?:the message is )?too long/i.test(s)) return t('errors.toolong');
 
     if (!s) s = t('errors.fallback');
 
-    // Heuristic translation of common phrases
-    s = s.replace(/\bmust be\b/gi,'musi miec')
-         .replace(/\bshould be\b/gi,'powinno miec')
-         .replace(/\bdigits?\b/gi,'cyfr')
-         .replace(/\binvalid\b/gi,'nieprawidlowy')
-         .replace(/\btoo long\b/gi,'za dlugi')
-         .replace(/\btoo short\b/gi,'za krotki')
-         .replace(/[.:\s]+$/,'')
-         .trim();
+    // Heuristic translation of common phrases (PL only).
+    if (isPl) {
+      s = s.replace(/\bmust be\b/gi,'musi miec')
+           .replace(/\bshould be\b/gi,'powinno miec')
+           .replace(/\bdigits?\b/gi,'cyfr')
+           .replace(/\binvalid\b/gi,'nieprawidlowy')
+           .replace(/\btoo long\b/gi,'za dlugi')
+           .replace(/\btoo short\b/gi,'za krotki')
+           .replace(/[.:\s]+$/,'')
+           .trim();
+    } else {
+      s = s.replace(/[.:\s]+$/, '').trim();
+    }
     return s;
   }
 
