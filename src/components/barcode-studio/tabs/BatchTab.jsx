@@ -102,6 +102,7 @@ function RemoveIcon() {
 export default function BatchTab({
   t,
   popularCodeIds,
+  codeGroups,
   parseCsv,
   parseLines,
   batchInput,
@@ -129,6 +130,9 @@ export default function BatchTab({
   ])
 
   const [openPanel, setOpenPanel] = useState('batch')
+  const grouped = Array.isArray(codeGroups) && codeGroups.length
+    ? codeGroups
+    : [{ key: 'all', ids: popularCodeIds }]
   const parseBatchText = (value) => parseLines(value, { splitCaption: batchCaptionMode, separator: batchSeparator })
   const toBatchRow = (row) => {
     if (row && typeof row === 'object') {
@@ -251,8 +255,12 @@ export default function BatchTab({
             <strong>{t('batch.titleShort')}</strong>
             <span className="small">{t('batch.codeType')}:</span>
             <select className="select" value={batchBcid} onChange={(e) => setBatchBcid(e.target.value)}>
-              {popularCodeIds.map((id) => (
-                <option key={id} value={id}>{t(`codes.${id.replace('-', '_')}.label`)}</option>
+              {grouped.map((group) => (
+                <optgroup key={group.key} label={t(`codesGroup.${group.key}`)}>
+                  {group.ids.map((id) => (
+                    <option key={id} value={id}>{t(`codes.${id.replace('-', '_')}.label`)}</option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>

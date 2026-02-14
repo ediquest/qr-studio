@@ -51,6 +51,7 @@ function DownloadIcon({ kind }) {
 export default function GeneratorTab({
   t,
   popularCodeIds,
+  codeGroups,
   is2dSet,
   bcid,
   setBcid,
@@ -167,6 +168,9 @@ export default function GeneratorTab({
       alert('Błąd SVG: ' + (e?.message || e))
     }
   }
+  const grouped = Array.isArray(codeGroups) && codeGroups.length
+    ? codeGroups
+    : [{ key: 'all', ids: popularCodeIds }]
 
   return (
     <div className="grid-generator">
@@ -184,8 +188,12 @@ export default function GeneratorTab({
         <div className="grid-generator" style={{ gridTemplateColumns: '1fr 1fr' }}>
           <Field label={t('generator.codeType')}>
             <select className="select" value={bcid} onChange={(e) => setBcid(e.target.value)}>
-              {popularCodeIds.map((id) => (
-                <option key={id} value={id}>{t(`codes.${id.replace('-', '_')}.label`)}</option>
+              {grouped.map((group) => (
+                <optgroup key={group.key} label={t(`codesGroup.${group.key}`)}>
+                  {group.ids.map((id) => (
+                    <option key={id} value={id}>{t(`codes.${id.replace('-', '_')}.label`)}</option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             <div className="small">{t(`codes.${(typeof bcid === 'string' ? bcid : '').replace('-', '_')}.note`)}</div>
@@ -394,7 +402,7 @@ export default function GeneratorTab({
         {error ? <div className="small" style={{ color: '#b91c1c', marginTop: 8 }}>{error}</div> :
           <div className="small" style={{ marginTop: 8 }}>{t('generator.emptyHint')}</div>}
 
-        {gs1Report && (
+        {gs1Report && !error && (
           <div className="card" style={{ marginTop: 12 }}>
             <div><strong>Weryfikacja GS1 (AI)</strong></div>
             {gs1Report.issues.length ? (

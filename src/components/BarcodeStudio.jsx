@@ -11,7 +11,12 @@ import BatchTab from './barcode-studio/tabs/BatchTab.jsx'
 import LabelsTab from './barcode-studio/tabs/LabelsTab.jsx'
 import MySheetsTab from './barcode-studio/tabs/MySheetsTab.jsx'
 
-const POPULAR_CODE_IDS = ['qrcode','code128','ean13','ean8','itf14','gs1-128','datamatrix','azteccode','pdf417'];
+const POPULAR_CODE_IDS = ['qrcode','microqrcode','maxicode','code128','code93','code39','code39ext','codabar','interleaved2of5','code11','msi','ean13','ean8','upca','upce','itf14','gs1-128','datamatrix','gs1datamatrix','hibccode39','hibcdatamatrix','azteccode','pdf417'];
+const CORE_CODE_IDS = ['qrcode', 'code128', 'ean13', 'datamatrix', 'gs1-128', 'pdf417', 'azteccode']
+const CODE_GROUPS = [
+  { key: 'popular', ids: CORE_CODE_IDS },
+  { key: 'more', ids: POPULAR_CODE_IDS.filter((id) => !CORE_CODE_IDS.includes(id)) },
+]
 const SAVED_SHEETS_KEY = 'rbs_saved_sheets_v1'
 
 export default function BarcodeStudio() {
@@ -904,12 +909,15 @@ export default function BarcodeStudio() {
       'isbn13badlength': 'ISBN-13 musi miec 12 lub 13 cyfr (bez myslnikow)',
       'code39badcharacter': t('errors.code39badcharacter'),
       'code128badcharacter': t('errors.code128badcharacter'),
+      'code11badcharacter': t('errors.code11badcharacter'),
+      'msibadcharacter': t('errors.msibadcharacter'),
       'itfbadcharacter':    'ITF (Interleaved 2 of 5) akceptuje tylko cyfry',
       'postnetbadcharacter': 'POSTNET akceptuje tylko cyfry',
       'badcheckdigit': t('errors.badcheckdigit'),
       'badchecksum':   t('errors.badchecksum'),
       'qrcodetoolong': t('errors.toolong'),
       'datamatrixtoolong': t('errors.toolong'),
+      'gs1datamatrixtoolong': t('errors.toolong'),
       'pdf417toolong': t('errors.toolong'),
     };
     if (code && dict[code]) return dict[code];
@@ -1470,6 +1478,7 @@ export default function BarcodeStudio() {
         <GeneratorTab
           t={t}
           popularCodeIds={POPULAR_CODE_IDS}
+          codeGroups={CODE_GROUPS}
           is2dSet={TWO_D_SET}
           bcid={bcid}
           setBcid={setBcid}
@@ -1516,6 +1525,7 @@ export default function BarcodeStudio() {
         <BatchTab
           t={t}
           popularCodeIds={POPULAR_CODE_IDS}
+          codeGroups={CODE_GROUPS}
           parseCsv={parseCsv}
           parseLines={parseLines}
           batchInput={batchInput}
@@ -1570,7 +1580,13 @@ export default function BarcodeStudio() {
                   <input className="input" type="number" min="0.2" max="5" step="0.1" value={panelMulY} onChange={(e)=>setSelectionMulY(parseFloat(e.target.value||'1'))} style={{ width: 74 }} />
                 </div>
                 <select className="select" value={panelBcid} onChange={(e)=>setSelectionBcid(e.target.value)} style={{ minWidth: 180 }}>
-                  {POPULAR_CODE_IDS.map((id) => <option key={id} value={id}>{t(`codes.${id.replace('-', '_')}.label`)}</option>)}
+                  {CODE_GROUPS.map((group) => (
+                    <optgroup key={group.key} label={t(`codesGroup.${group.key}`)}>
+                      {group.ids.map((id) => (
+                        <option key={id} value={id}>{t(`codes.${id.replace('-', '_')}.label`)}</option>
+                      ))}
+                    </optgroup>
+                  ))}
                 </select>
                 <input className="input selection-content-input" type="text" value={panelText} disabled={editAll} onChange={(e)=>setSelectionText(e.target.value)} placeholder={editAll ? t('labels.textDisabledInEditAll') : t('labels.codeContent')} style={{ opacity: editAll ? 0.55 : 1 }} />
               </div>

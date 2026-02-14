@@ -11,7 +11,7 @@ function normalizeHrtFont(value) {
 
 function normalizeInput(bcid, value) {
   let v = (value || '').toString().trim()
-  if (['ean13', 'ean8', 'itf14'].some((x) => bcid.startsWith(x))) {
+  if (['ean13', 'ean8', 'itf14', 'upca', 'upce'].some((x) => bcid.startsWith(x))) {
     v = v.replace(/[^0-9]/g, '')
   }
   return v
@@ -38,12 +38,15 @@ function cleanBwipError(err, t) {
     isbn13badlength: 'ISBN-13 musi mieć 12 lub 13 cyfr (bez myślników)',
     code39badcharacter: t('errors.code39badcharacter'),
     code128badcharacter: t('errors.code128badcharacter'),
+    code11badcharacter: t('errors.code11badcharacter'),
+    msibadcharacter: t('errors.msibadcharacter'),
     itfbadcharacter: 'ITF (Interleaved 2 of 5) akceptuje tylko cyfry',
     postnetbadcharacter: 'POSTNET akceptuje tylko cyfry',
     badcheckdigit: t('errors.badcheckdigit'),
     badchecksum: t('errors.badchecksum'),
     qrcodetoolong: t('errors.toolong'),
     datamatrixtoolong: t('errors.toolong'),
+    gs1datamatrixtoolong: t('errors.toolong'),
     pdf417toolong: t('errors.toolong'),
   }
   if (code && dict[code]) return dict[code]
@@ -173,7 +176,7 @@ export default function useGeneratorState({ t, toSvg, makeBitmap }) {
   }, [bcid, text, scale, height, includeText, hrtFont, hrtSize, hrtGap, customCaptionEnabled, rotate, toSvg, makeBitmap, t])
 
   const gs1Report = useMemo(() => {
-    if (bcid !== 'gs1-128' && bcid !== 'qrcode' && bcid !== 'datamatrix') return null
+    if (bcid !== 'gs1-128' && bcid !== 'qrcode' && bcid !== 'datamatrix' && bcid !== 'gs1datamatrix') return null
     if (!text.includes('(')) return null
     return validateGs1(text)
   }, [text, bcid])

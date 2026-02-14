@@ -2,9 +2,10 @@ import * as bw from 'bwip-js'
 
 const BCID_ALIASES = {
   rm4scc: 'royalmail',
+  codabar: 'rationalizedCodabar',
 }
 
-export const TWO_D_SET = new Set(['qrcode', 'datamatrix', 'pdf417', 'azteccode'])
+export const TWO_D_SET = new Set(['qrcode', 'microqrcode', 'maxicode', 'datamatrix', 'gs1datamatrix', 'hibcdatamatrix', 'pdf417', 'azteccode'])
 
 export function resolveBcid(id) {
   return BCID_ALIASES[id] || id
@@ -26,7 +27,8 @@ export function hasToSVG() {
 export function toSvg(opts) {
   const fn = bw.toSVG || bw.toSvg
   if (!fn) throw new Error('bwip-js: toSVG not available')
-  return fn({ ...opts, rotate: rotCode(opts.rotate || 0) })
+  const bcid = resolveBcid(opts?.bcid)
+  return fn({ ...opts, bcid, rotate: rotCode(opts.rotate || 0) })
 }
 
 export function makeBitmap(opts) {
@@ -54,7 +56,7 @@ export function makeBitmap(opts) {
   }
   const fn = bw.toCanvas
   if (!fn) throw new Error('bwip-js: toCanvas not available')
-  const safe = { ...bwipOpts, rotate: rotCode((bwipOpts && bwipOpts.rotate) || 0) }
+  const safe = { ...bwipOpts, bcid: resolveBcid(bwipOpts?.bcid), rotate: rotCode((bwipOpts && bwipOpts.rotate) || 0) }
   fn(canvas, safe)
   if (fmt === 'jpeg' || fmt === 'jpg') {
     return canvas.toDataURL('image/jpeg', Math.max(0.1, Math.min(1, Number(imageQuality) || 0.8)))
