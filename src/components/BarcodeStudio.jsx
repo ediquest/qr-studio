@@ -393,6 +393,12 @@ export default function BarcodeStudio() {
     const w = h * safeRatio * mulX
     return Math.max(2, Math.min(cellW, w))
   }
+  function twoDWidthMM(idx, h, mulX = 1){
+    const ratio = previewRatios[idx]
+    const safeRatio = ratio > 0 ? ratio : 1
+    const w = h * safeRatio * mulX
+    return Math.max(2, w)
+  }
   function captionCfg(item){
     const enabled = hasCustomCaption(item)
     const text = resolvedCustomCaptionText(item)
@@ -784,7 +790,7 @@ export default function BarcodeStudio() {
     const mulX = effMul(i,'x'); const mulY = effMul(i,'y')
     const is2d = TWO_D_SET.has(labels[i]?.bcid||'')
     const h = cellH * mulY
-    return { w: is2d ? (cellW*mulX) : oneDWidthMM(i, h), h }
+    return { w: is2d ? twoDWidthMM(i, h, mulX) : oneDWidthMM(i, h), h }
   }
   function clampPosToCell(i, pos){
     const { cellW, cellH } = metrics()
@@ -1060,7 +1066,7 @@ export default function BarcodeStudio() {
                 const mulX = editAll?globalMulX:((sizeOverrides[idx]?.x)||1); const mulY = editAll?globalMulY:((sizeOverrides[idx]?.y)||1)
                 const is2d = TWO_D_SET.has(item.bcid)
                 const drawH = cellH * mulY
-                const drawW = is2d ? (cellW*mulX) : oneDWidthMM(idx, drawH)
+                const drawW = is2d ? twoDWidthMM(idx, drawH, mulX) : oneDWidthMM(idx, drawH)
                 const defX = col*(cellW+gapMM) + (cellW - drawW) / 2
                 const defY = row*(cellH+gapMM) + (cellH - drawH) / 2
                 const pos = posOverrides[idx] || { x: defX, y: defY }
@@ -1178,7 +1184,7 @@ export default function BarcodeStudio() {
         } else {
           const col = i % cols; const row = Math.floor(i / cols);
           drawH = cellH * mulY;
-          drawW = is2d ? (cellW*mulX) : oneDWidthMM(idx, drawH);
+          drawW = is2d ? twoDWidthMM(idx, drawH, mulX) : oneDWidthMM(idx, drawH);
           const defX = col*(cellW+gapMM) + (cellW - drawW) / 2;
           const defY = row*(cellH+gapMM) + (cellH - drawH) / 2;
           const pos = posOverrides[idx] || { x:defX, y:defY };

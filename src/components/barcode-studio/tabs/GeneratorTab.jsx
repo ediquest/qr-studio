@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 import Field from '../ui/Field.jsx'
 import Toolbar from '../ui/Toolbar.jsx'
 
@@ -108,10 +108,59 @@ export default function GeneratorTab({
     ? Math.max(18, Math.min(280, Math.round((previewCaptionSize * 1.9) + Math.max(0, hasCustomCaption ? (Number(customCaptionGap) || 0) : (Number(hrtGap) || 0)) + 8)))
     : 0
 
-  const downloadPng = () => {
+  const normalizeExportInput = (symId, value) => {
+    let v = (value || '').toString().trim()
+    if (['ean13', 'ean8', 'itf14', 'upca', 'upce'].some((x) => symId.startsWith(x))) {
+      v = v.replace(/[^0-9]/g, '')
+    }
+    return v
+  }
+
+  const loadImageFromDataUrl = (dataUrl) => new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = dataUrl
+  })
+
+  const composeCaptionedPng = async (barcodeDataUrl) => {
+    if (!hasCustomCaption) return barcodeDataUrl
+
+    const barcodeImg = await loadImageFromDataUrl(barcodeDataUrl)
+    const exportMul = Math.max(1, Number(pngMul) || 1)
+    const exportCaptionSize = Math.max(8, Math.round(previewCaptionSize * exportMul))
+    const extraTop = Math.max(0, Math.round((Number(customCaptionGap) || 0) * exportMul))
+    const captionArea = Math.max(1, Math.round(previewCaptionReserve * exportMul))
+
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, barcodeImg.width)
+    canvas.height = Math.max(1, barcodeImg.height + captionArea)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return barcodeDataUrl
+
+    if (downloadWhiteBg) {
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+    }
+
+    ctx.drawImage(barcodeImg, 0, 0)
+
+    const captionY = barcodeImg.height + extraTop
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
+    ctx.font = `${exportCaptionSize}px ${previewCaptionFont}`
+    ctx.fillStyle = '#0f172a'
+    ctx.fillText(previewCaptionText, canvas.width / 2, captionY)
+
+    return canvas.toDataURL('image/png')
+  }
+
+  const downloadPng = async () => {
     try {
       const base = (Number(scale) || 3) * (Number(pngMul) || 1)
-      const opts = { bcid, text, rotate }
+      const normalizedText = normalizeExportInput(bcid, text || '')
+      if (!normalizedText) throw new Error(t('generator.errorNoText'))
+      const opts = { bcid, text: normalizedText, rotate }
       if (downloadWhiteBg) opts.backgroundcolor = 'FFFFFF'
       if (is2d) {
         opts.scaleX = base
@@ -127,7 +176,10 @@ export default function GeneratorTab({
           opts.textyoffset = Math.max(-20, Math.min(80, Number(hrtGap) || 0))
         }
       }
-      const png = makeBitmap(opts)
+
+      const pngBase = makeBitmap(opts)
+      const png = await composeCaptionedPng(pngBase)
+
       const a = document.createElement('a')
       a.href = png
       a.download = `${bcid}.png`
@@ -140,7 +192,9 @@ export default function GeneratorTab({
   const downloadSvg = () => {
     try {
       const base = Number(scale) || 3
-      const opts = { bcid, text, rotate }
+      const normalizedText = normalizeExportInput(bcid, text || '')
+      if (!normalizedText) throw new Error(t('generator.errorNoText'))
+      const opts = { bcid, text: normalizedText, rotate }
       if (downloadWhiteBg) opts.backgroundcolor = 'FFFFFF'
       if (is2d) {
         opts.scaleX = base
@@ -165,7 +219,7 @@ export default function GeneratorTab({
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
-      alert('Błąd SVG: ' + (e?.message || e))
+      alert('BĹ‚Ä…d SVG: ' + (e?.message || e))
     }
   }
   const grouped = Array.isArray(codeGroups) && codeGroups.length
@@ -329,7 +383,7 @@ export default function GeneratorTab({
 
       <div className="card">
         <div className="hstack" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-          <div><strong>{t('generator.preview')}</strong> <span className="badge"> {is2d ? '2D' : '1D'} • {t(`codes.${(typeof bcid === 'string' ? bcid : '').replace('-', '_')}.label`)}</span></div>
+          <div><strong>{t('generator.preview')}</strong> <span className="badge"> {is2d ? '2D' : '1D'} â€˘ {t(`codes.${(typeof bcid === 'string' ? bcid : '').replace('-', '_')}.label`)}</span></div>
         </div>
         <div className="preview">
           {genPreviewUrl ? (
@@ -406,7 +460,7 @@ export default function GeneratorTab({
           <div className="card" style={{ marginTop: 12 }}>
             <div><strong>Weryfikacja GS1 (AI)</strong></div>
             {gs1Report.issues.length ? (
-              <ul>{gs1Report.issues.map((x, i) => <li key={i} className="small">• {x}</li>)}</ul>
+              <ul>{gs1Report.issues.map((x, i) => <li key={i} className="small">â€˘ {x}</li>)}</ul>
             ) : <div className="small" style={{ color: '#059669' }}>{t('gs1.ok')}</div>}
           </div>
         )}
@@ -414,5 +468,9 @@ export default function GeneratorTab({
     </div>
   )
 }
+
+
+
+
 
 
